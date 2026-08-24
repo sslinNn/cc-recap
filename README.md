@@ -1,8 +1,22 @@
-<h1 align="center">cc-wrapped</h1>
+<h1 align="center">cc-recap</h1>
 
 <p align="center">
-  <b>Spotify-Wrapped for Claude Code.</b><br>
-  Reads your own transcripts, computes everything on this machine, uploads nothing.
+  <b>Spotify Wrapped for Claude Code.</b><br>
+  One command. Reads the transcripts Claude Code already wrote, computes everything
+  on your machine, uploads nothing.
+</p>
+
+<p align="center">
+  <code>npx cc-recap</code>
+</p>
+
+<p align="center">
+  <img src="docs/card.png" alt="The share card: archetype, what you said versus what it did, spend, hours, and the lines-written-per-line-kept ratio." width="820">
+</p>
+
+<p align="center">
+  <i>It tells you which of you two wrote more, what your worst hour is, and what
+  it actually cost. Then it hands you that card as a PNG.</i>
 </p>
 
 ---
@@ -40,6 +54,19 @@ cc-recap --from 2026-08-01 --to 2026-08-07 --out august.html
 | `--open` | open the report in your browser |
 | `--quiet` | no terminal summary |
 | `--version` | print the version |
+
+## The card
+
+The top of the report is a 1200 × 630 card — archetype, what you said versus what it
+did, spend, the hours you exist in, and the ratio of lines written to lines kept.
+Three buttons sit above it:
+
+- **Download PNG** — the card at 2400 × 1260, rendered from the live page, no crop, no scrollbar.
+- **Share on X** — opens a post pre-filled with your numbers and saves the PNG to drag in.
+- **Safe mode** — replaces the middle of each swear word with asterisks and leaves the sentence intact, so
+  the card reads as something a person said and still goes up under your real name.
+
+The card carries `npx cc-recap` on it, which is the entire distribution strategy.
 
 ## Use it as a library
 
@@ -95,7 +122,9 @@ the anger is pointed at the agent rather than the code; two or more shouted word
 Matching is obfuscation-tolerant: Latin lookalikes fold to Cyrillic, masking characters are
 dropped, letter runs collapse, and letters spaced out to dodge a filter are closed up, so
 `б л я`, `6ля` and `бл*` all land on the same stem. The meter saturates at a weighted score
-of 2 per instruction. It never leaves this machine.
+of 2 per instruction. It never leaves this machine. Lookalike folding applies only inside a
+word that already contains Cyrillic, so an English word is matched as itself rather than
+being folded into mixed script.
 
 **Language.** Every phrase pattern is bilingual (EN + RU). Note that JavaScript's `\b` is
 ASCII-only and silently never matches around Cyrillic — every pattern here spells its word
@@ -106,6 +135,7 @@ boundaries out with Unicode lookarounds instead.
 ```
 wrapped.mjs        CLI: parse args, pick the window, write the file
 test/smoke.mjs     end-to-end check against a synthetic transcript (npm test)
+docs/card.png      the card image the top of this README points at
 src/collect.mjs    transcripts -> normalized corpus (turns, prompts, tools, edits, texts)
 src/pricing.mjs    price table and the billed/uncached cost model
 src/metrics.mjs    corpus -> report object (every number the page shows)
@@ -117,5 +147,11 @@ src/style.css      the report's stylesheet
 ## Privacy
 
 No network calls anywhere in the codebase. The only thing that leaves the process is the
-file you asked for — which does quote your own angriest message back at you, so think twice
-before screenshotting that part.
+file you asked for — which does quote your own angriest message back at you. **Safe mode**
+on the card masks the rude words in that quote before you export the PNG — first and last
+letter kept, everything between them replaced with asterisks — while the rest of the
+sentence stays readable. The verbatim text stays in the Rage section, on your machine.
+
+The two buttons that touch the outside world do so only when you click them: **Share on X**
+opens a pre-filled compose window in a new tab (it does not post), and **Download PNG**
+writes a file. Neither sends the report anywhere.

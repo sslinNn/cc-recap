@@ -131,6 +131,11 @@ export function vocabulary(userTexts, agentTexts, top = 6) {
 const LOOKALIKE = { a: "а", e: "е", o: "о", p: "р", c: "с", x: "х", y: "у", k: "к", m: "м", t: "т", b: "в", h: "н", "3": "з", "6": "б", "0": "о", "4": "ч" };
 
 export function normalizeForRage(text) {
+  const plain = text
+    .toLowerCase()
+    .replace(/[^\p{L}\s]/gu, " ")
+    .replace(/(\p{L})\1{2,}/gu, "$1$1")
+    .replace(/\s+/g, " ");
   const folded = text
     .toLowerCase()
     .replace(/[a-z0-9]/g, (ch) => LOOKALIKE[ch] ?? ch)
@@ -140,13 +145,81 @@ export function normalizeForRage(text) {
   // Letters spaced out to dodge a filter read as one word once the gaps are closed;
   // both readings are kept so a genuine one-letter word survives too.
   const closed = folded.replace(/(?<!\p{L})\p{L}(?: \p{L})+(?!\p{L})/gu, (m) => m.replace(/ /g, ""));
-  return closed + " " + folded;
+  // The unfolded reading has to survive too: folding turns "fuck" into "fuск"
+  // with a Cyrillic с and к, which no English pattern can ever match.
+  return closed + " " + folded + " " + plain;
+}
+
+const HAS_CYRILLIC = /[\u0400-\u04FF]/;
+
+/** One word, reduced to the letters a pattern can see. Lookalikes only fold
+    inside a word that is already Cyrillic — an English word is left alone. */
+function foldToken(token) {
+  const lower = token.toLowerCase();
+  const folded = HAS_CYRILLIC.test(lower)
+    ? lower.replace(/[a-z0-9]/g, (ch) => LOOKALIKE[ch] ?? ch)
+    : lower;
+  return folded.replace(/[^\p{L}]/gu, "").replace(/(\p{L})\1{2,}/gu, "$1$1");
 }
 
 const PROFANITY = [stem("бля"), word("сук[аиуоеи]?"), stem("ху[йеяю]"), stem("нахуй|похуй"), stem("пизд"), stem("[зндуп]?[аое]?еб[аеёуы]"), word("fuck\\w*"), word("shit"), word("bullshit"), word("damn")];
 const INSULT = [stem("идиот"), stem("дебил"), stem("кретин"), stem("туп(ой|ая|ое|ица)"), stem("мраз"), stem("даун"), word("stupid"), word("idiot"), word("moron"), word("useless"), word("garbage"), word("trash")];
 const ANNOYANCE = [stem("да ты"), stem("опять"), stem("снова не"), stem("сколько раз"), stem("блин"), stem("чёрт|черт"), word("wtf"), word("seriously"), word("come on"), stem("не работает"), stem("сломал"), stem("ты что"), stem("почему опять")];
 const AT_AGENT = [word("ты"), word("тебя"), word("тебе"), stem("тво[йяие]"), word("you"), word("your")];
+
+/** Only the words that would score as profanity or an insult; annoyance is
+    mild enough to stand ("блин", "wtf") and masking it would read as a typo. */
+const isRude = (folded) =>
+  PROFANITY.some((re) => re.test(folded)) || INSULT.some((re) => re.test(folded));
+
+const TOKEN = /[\p{L}\p{N}][\p{L}\p{N}*@#$&_'\u2019-]*/gu;
+const LETTER = /[\p{L}\p{N}]/u;
+
+/** The sentence stays readable; the swearing does not. Inside a rude word the
+    first and last letters survive and everything between them becomes an
+    asterisk, so the line still scans and the word is still unmistakably
+    censored — the convention every reader already knows. */
+export function maskProfanity(text, mark = "*") {
+  const tokens = [...text.matchAll(TOKEN)].map((m) => ({ text: m[0], at: m.index }));
+  const struck = new Set();
+
+  const condemn = (group) => {
+    const spots = [];
+    for (const token of group) {
+      for (let i = 0; i < token.text.length; i += 1) {
+        if (LETTER.test(token.text[i])) spots.push(token.at + i);
+      }
+    }
+    for (let i = 1; i < spots.length - 1; i += 1) struck.add(spots[i]);
+  };
+
+  for (let i = 0; i < tokens.length; i += 1) {
+    if (isRude(foldToken(tokens[i].text))) {
+      condemn([tokens[i]]);
+      continue;
+    }
+    // Letters spaced out to dodge a filter are one word wearing gaps, and the
+    // gaps are kept when it is struck out so the line does not change length.
+    if (tokens[i].text.length !== 1) continue;
+    let end = i;
+    while (
+      end + 1 < tokens.length &&
+      tokens[end + 1].text.length === 1 &&
+      tokens[end + 1].at === tokens[end].at + 2
+    ) end += 1;
+    if (end === i) continue;
+    const run = tokens.slice(i, end + 1);
+    if (isRude(foldToken(run.map((t) => t.text).join("")))) {
+      condemn(run);
+      i = end;
+    }
+  }
+
+  if (!struck.size) return text;
+  const out = text.split("");
+  for (const at of struck) out[at] = mark;
+  return out.join("");
+}
 
 const WEIGHT = { annoyance: 1, profanity: 3, insult: 6 };
 

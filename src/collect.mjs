@@ -62,6 +62,12 @@ const ENVELOPE = [
   /<command-(name|message|args)>[\s\S]*?<\/command-\1>/g,
   /<system-reminder>[\s\S]*?<\/system-reminder>/g,
   /<user-prompt-submit-hook>[\s\S]*?<\/user-prompt-submit-hook>/g,
+  // A finished background task reports itself through the user role; it is the
+  // harness talking, and left in it wins "angriest message" on a quiet week.
+  /<task-notification>[\s\S]*?<\/task-notification>/g,
+  // `!` runs a shell command locally. The human typed it, but they typed it at
+  // the shell, not at the agent, so it is not one of their instructions.
+  /<bash-(input|stdout|stderr)>[\s\S]*?<\/bash-\1>/g,
 ];
 
 export function cleanPrompt(text) {

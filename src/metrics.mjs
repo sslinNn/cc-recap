@@ -255,31 +255,92 @@ export function analyze(corpus, { prices = DEFAULT_PRICES } = {}) {
   return report;
 }
 
-/** A label and a verdict, both assembled from figures that are actually in the report. */
+/** The archetype is the part people screenshot, so it is scored rather than
+    chained: every candidate that applies proposes a weight, and the heaviest
+    one wins. Each verdict quotes the figure that earned it — no claim on the
+    card is unbacked by a number in the report below it. */
 function archetypeOf(r) {
-  const night = pct(r.rhythm.nightEvents, r.scale.events);
+  const asPct = (n) => Math.round(n) + "%";
+  const asNum = (n) => Math.round(n).toLocaleString("en-US");
+  const asMoney = (n) => "$" + n.toFixed(2);
+  const nightShare = pct(r.rhythm.nightEvents, r.scale.events);
   const permissive = r.ledger.permissiveShare;
-  const traits = [];
+  const perSession = r.scale.sessions ? r.scale.instructions / r.scale.sessions : 0;
+  const perDay = r.rhythm.activeDays ? r.money.billed / r.rhythm.activeDays : 0;
+  const ratio = r.work.ratio;
 
-  let name = "The Operator";
-  if (r.behaviour.bashShare > 40 && permissive > 30) name = "Ghost in the Shell";
-  else if (night > 20) name = "The Night Shift";
-  else if (r.rage.meter > 40) name = "The Interrogator";
-  else if (r.work.ratio && r.work.ratio > 6) name = "The Rewriter";
-  else if (r.behaviour.bashShare < 15) name = "The Librarian";
+  const candidates = [
+    {
+      when: r.behaviour.bashShare > 40 && permissive > 30,
+      weight: r.behaviour.bashShare + permissive,
+      name: "Ghost in the Shell",
+      verdict: `${asPct(r.behaviour.bashShare)} of your tool calls were raw shell, and ${asPct(permissive)} of them ran without asking. You are not using an assistant, you are using a terminal that talks back.`,
+    },
+    {
+      when: r.scale.scriptedShare > 20,
+      weight: 60 + r.scale.scriptedShare,
+      name: "The Puppeteer",
+      verdict: `${asPct(r.scale.scriptedShare)} of your instructions were never typed by a human — a script wrote them. You stopped prompting and started scheduling.`,
+    },
+    {
+      when: nightShare > 20,
+      weight: 40 + nightShare * 1.5,
+      name: "The Night Shift",
+      verdict: `${asNum(r.rhythm.nightEvents)} events between midnight and six. Whatever you are building, it is being built while the rest of your timezone sleeps.`,
+    },
+    {
+      when: r.rage.meter > 40,
+      weight: 35 + r.rage.meter,
+      name: "The Interrogator",
+      verdict: `${asNum(r.rage.profanity + r.rage.insults)} messages crossed from instruction into interrogation. The work got done. Nobody enjoyed it.`,
+    },
+    {
+      when: ratio !== null && ratio > 6,
+      weight: 30 + ratio * 3,
+      name: "The Rewriter",
+      verdict: `${asNum(r.work.added)} lines written, ${asNum(r.work.net)} survived — ${ratio.toFixed(1)} drafts for every line that stayed. You do not write code, you converge on it.`,
+    },
+    {
+      when: permissive > 60,
+      weight: 25 + permissive,
+      name: "The Rubber Stamp",
+      verdict: `${asPct(permissive)} of your work went through with the confirmation step turned off. You have read exactly none of the diffs and you know it.`,
+    },
+    {
+      when: perSession > 25,
+      weight: 20 + perSession,
+      name: "The Backseat Driver",
+      verdict: `${perSession.toFixed(0)} instructions per session on average. You did not delegate a task, you narrated one keystroke at a time.`,
+    },
+    {
+      when: perDay > 50,
+      weight: 20 + perDay / 4,
+      name: "The Whale",
+      verdict: `${asMoney(perDay)} of tokens a day, ${asMoney(r.money.billed)} across ${asNum(r.rhythm.activeDays)} active days. The cache saved you ${asMoney(r.money.saved)} and you still spent this.`,
+    },
+    {
+      when: r.rhythm.streak >= 5,
+      weight: 15 + r.rhythm.streak * 2,
+      name: "The Streak",
+      verdict: `${asNum(r.rhythm.streak)} days in a row without missing one. This is not a tool you reach for, it is a habit you maintain.`,
+    },
+    {
+      when: r.behaviour.bashShare < 15 && r.scale.instructions > 0,
+      weight: 12,
+      name: "The Librarian",
+      verdict: `Barely any shell — ${asPct(r.behaviour.bashShare)} of tool calls. You read, you ask, you edit in place, and you never let it loose on the machine.`,
+    },
+    {
+      when: true,
+      weight: 0,
+      name: "The Operator",
+      verdict: `${asNum(r.scale.instructions)} instructions, ${asNum(r.scale.actions)} actions, ${asNum(r.rhythm.activeDays)} days. No extremes in either direction — you just used the thing.`,
+    },
+  ];
 
-  if (r.behaviour.bashShare > 40) traits.push("Bash-first");
-  if (permissive > 30) traits.push("permissions off");
-  if (r.rhythm.lastHour !== null && r.rhythm.lastHour < 20 && !r.rhythm.nightEvents) {
-    traits.push(`home by ${r.rhythm.lastHour + 1}`);
-  }
-  if (night > 20) traits.push("nocturnal");
-  if (r.work.ratio && r.work.ratio > 6) traits.push(`${r.work.ratio.toFixed(1)} lines written per 1 kept`);
+  const winner = candidates
+    .filter((c) => c.when)
+    .sort((a, b) => b.weight - a.weight)[0];
 
-  const scripted = r.scale.scriptedShare;
-  const tail =
-    scripted > 20
-      ? ` ${Math.round(scripted)}% of your instructions weren't even typed by you — a script wrote them.`
-      : "";
-  return { name, verdict: (traits.join(", ") || "Steady and unremarkable") + "." + tail };
+  return { name: winner.name, verdict: winner.verdict };
 }
