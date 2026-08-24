@@ -1,0 +1,54 @@
+{
+  "name": "cc-recap",
+  "version": "1.0.0",
+  "description": "Spotify-Wrapped for Claude Code — reads your own transcripts, computes everything locally, uploads nothing.",
+  "type": "module",
+  "bin": {
+    "cc-recap": "wrapped.mjs"
+  },
+  "main": "src/metrics.mjs",
+  "exports": {
+    ".": "./src/metrics.mjs",
+    "./collect": "./src/collect.mjs",
+    "./render": "./src/render.mjs",
+    "./pricing": "./src/pricing.mjs",
+    "./text": "./src/text.mjs"
+  },
+  "files": [
+    "wrapped.mjs",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node wrapped.mjs",
+    "test": "node test/smoke.mjs",
+    "prepublishOnly": "npm test"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "wrapped",
+    "recap",
+    "statistics",
+    "analytics",
+    "transcripts",
+    "cli",
+    "offline"
+  ],
+  "author": {
+    "name": "sslinNn"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sslinNn/cc-recap.git"
+  },
+  "homepage": "https://github.com/sslinNn/cc-recap#readme",
+  "bugs": {
+    "url": "https://github.com/sslinNn/cc-recap/issues"
+  }
+}
