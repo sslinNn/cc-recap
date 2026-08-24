@@ -4,6 +4,7 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { maskProfanity } from "./text.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CSS = readFileSync(join(HERE, "style.css"), "utf8");
@@ -27,27 +28,39 @@ const dateLabel = (ts) =>
 
 const hourLabel = (h) => String(h).padStart(2, "0") + ":00";
 
+/**
+ * One shared scale, thin marks, the value printed at the end of every bar. A row
+ * may carry its own signal class as a fourth element when the rows mean
+ * different things — cached traffic is not the same kind of thing as output.
+ */
 function bars(rows, cls, format = num) {
   const max = Math.max(...rows.map((r) => r[1]), 1);
   return rows
-    .map(([name, value, tip]) => `
+    .map(([name, value, tip, rowCls], i) => {
+      const signal = rowCls ?? cls;
+      return `
         <div class="bar-row" data-tip="${esc(tip ?? `${name} — ${num(value)}`)}">
           <span class="bar-key">${esc(name)}</span>
-          <span class="bar-track"><span class="bar-fill${cls ? " " + cls : ""}" style="width:${(100 * value) / max}%"></span></span>
+          <span class="bar-track"><span class="bar-fill${signal ? " " + signal : ""}" style="--fill:${((100 * value) / max).toFixed(2)}%;--delay:${(i * 0.05).toFixed(2)}s"></span></span>
           <span class="bar-val num">${esc(format(value))}</span>
-        </div>`)
+        </div>`;
+    })
     .join("");
 }
 
-function pairRow(label, total, left, right, leftTip, rightTip, colors = ["signal", "cool"]) {
+function pairRow(label, total, left, right, leftTip, rightTip, colors = ["burn", "churn"]) {
   const sum = left + right || 1;
   const l = (100 * left) / sum;
   return `
         <div class="pair-row">
           <div class="pair-head"><span>${esc(label)}</span><span class="num">${esc(total)}</span></div>
           <div class="pair-track">
-            <span class="pair-seg seg-${colors[0]}" style="width:${l}%" data-tip="${esc(leftTip)}">${Math.round(l)}%</span>
-            <span class="pair-seg seg-${colors[1]}" style="width:${100 - l}%" data-tip="${esc(rightTip)}">${Math.round(100 - l)}%</span>
+            <span class="pair-seg seg-${colors[0]}" style="--seg:${l.toFixed(2)}%" data-tip="${esc(leftTip)}"></span>
+            <span class="pair-seg seg-${colors[1]}" style="--seg:${(100 - l).toFixed(2)}%" data-tip="${esc(rightTip)}"></span>
+          </div>
+          <div class="pair-foot">
+            <span><i class="swatch" style="background:var(--${colors[0]})"></i>${Math.round(l)}%</span>
+            <span>${Math.round(100 - l)}%<i class="swatch" style="background:var(--${colors[1]})"></i></span>
           </div>
         </div>`;
 }
@@ -89,24 +102,44 @@ function toolLine(r) {
 }
 
 // ---- Page -----------------------------------------------------------------
-export function render(r, { title = "AI Wrapped" } = {}) {
+export function render(r, { title = "cc-recap — your week with Claude Code" } = {}) {
   const from = dateLabel(r.period.from);
   const to = new Date(r.period.to).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   const range = `${from}–${to}`;
   const ratio = r.work.ratio ? r.work.ratio.toFixed(1) : "—";
   const worst = r.rage.worst;
   const quote = worst ? worst.text.replace(/\s+/g, " ").slice(0, 150) + (worst.text.length > 150 ? "…" : "") : null;
+  const conversation = r.scale.instructions + r.scale.actions;
+  const youShare = conversation ? (100 * r.scale.instructions) / conversation : 50;
+  const clock = (ts) => new Date(ts).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const quoteWho = worst ? `Your angriest message · ${dateLabel(worst.ts)}, ${clock(worst.ts)}` : "";
+  const quoteHtml = quote
+    ? `<div class="quote-strip">“${esc(quote)}”<span class="who">${esc(quoteWho)}</span></div>`
+    : "";
+  // The asterisks are wrapped so they can be set apart from the words around
+  // them; a serif italic hangs them high enough to read as footnote markers.
+  const maskedQuote = quote
+    ? esc(maskProfanity(quote)).replace(/\*+/g, (run) => `<span class="masked">${run}</span>`)
+    : "";
+
+  // Safe mode strikes out the middle of the swearing and leaves the sentence
+  // intact, so the card stays postable under a real name and still reads as
+  // something a person actually said.
+  const safeQuoteHtml = quote
+    ? `<div class="quote-strip is-safe">“${maskedQuote}”<span class="who">Masked for the timeline · ${esc(quoteWho)}</span></div>`
+    : "";
 
   const body = `
 <div class="wrap">
 
   <div class="masthead">
-    <h1>AI WRAPPED</h1>
-    <div class="meta">
-      <div class="label">Reporting period</div>
-      <div class="num">${esc(new Date(r.period.from).toLocaleDateString("sv-SE"))} → ${esc(new Date(r.period.to).toLocaleDateString("sv-SE"))}</div>
-    </div>
+    <h1>cc-recap</h1>
+    <span class="meta num">${esc(new Date(r.period.from).toLocaleDateString("sv-SE"))} → ${esc(new Date(r.period.to).toLocaleDateString("sv-SE"))}</span>
   </div>
+  <p class="deck">
+    You said <span class="said">${num(r.scale.instructions)}</span> things.
+    It did <span class="did num">${num(r.scale.actions)}</span>.
+  </p>
   <div class="strapline">
     <span class="label">${num(r.scale.sessions)} sessions · ${num(r.rhythm.activeDays)} active days</span>
     <span class="label">Computed locally · nothing uploaded</span>
@@ -116,67 +149,89 @@ export function render(r, { title = "AI Wrapped" } = {}) {
   <div class="card-frame">
     <div class="sec-head">
       <h2>The card</h2>
-      <span class="hint">Screenshot this one · 1200 × 630</span>
+      <div class="card-actions">
+        <button type="button" class="act act-primary" id="dlPng">Download PNG</button>
+        <button type="button" class="act" id="shareX">Share on X</button>
+        <button type="button" class="act" id="copyPng">Copy image</button>
+        <button type="button" class="act act-toggle" id="safeToggle" aria-pressed="false">Safe mode: off</button>
+      </div>
     </div>
 
-    <div class="card">
-      <div class="card-top">
-        <span class="name">AI Wrapped</span>
-        <span class="range num">${esc(range)} · Claude Code</span>
+    <div class="card" id="shareCard">
+      <div class="card-id">
+        <span class="name">cc-recap</span>
+        <span class="when">${esc(range)} · Claude Code</span>
+      </div>
+
+      <div class="thesis">
+        <div class="row">
+          <div class="side side-you">
+            <span class="lbl">You said</span>
+            <b class="qty">${num(r.scale.instructions)}</b>
+          </div>
+          <div class="side side-it">
+            <span class="lbl">It did</span>
+            <b class="qty num">${num(r.scale.actions)}</b>
+          </div>
+        </div>
+        <div class="split" style="--you-share:${youShare.toFixed(1)}%">
+          <span class="you"></span><span class="it"></span>
+        </div>
+        <div class="shares">
+          <span>${pct(youShare)} of the conversation</span>
+          <span>${pct(100 - youShare)}</span>
+        </div>
       </div>
 
       <div class="card-body">
-        <div>
-          <div class="arch-tag">Your archetype</div>
+        <div class="portrait">
+          <span class="lbl">Your archetype</span>
           <div class="arch">${esc(r.archetype.name)}</div>
           <p class="verdict">${esc(r.archetype.verdict)}</p>
-          <div class="flow">
-            <span><b class="num">${num(r.scale.instructions)}</b><span class="lbl">things you said</span></span>
-            <span class="to">→</span>
-            <span><b class="num v-signal">${num(r.scale.actions)}</b><span class="lbl">things it did</span></span>
-          </div>
+          <div id="quoteSlot">${quoteHtml}</div>
         </div>
 
-        <div>
-          ${quote ? `<div class="quote-strip">“${esc(quote)}”<span class="who">Your angriest message · ${esc(dateLabel(worst.ts))}, ${esc(new Date(worst.ts).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }))}</span></div>` : ""}
-          <div class="mini-tiles">
-            <div class="tile"><span class="v v-signal num">$${Math.round(r.money.billed)}</span><span class="k">Burned in ${num(r.rhythm.activeDays)} days</span></div>
-            <div class="tile"><span class="v num">${r.rhythm.firstHour ?? 0}–${(r.rhythm.lastHour ?? 0) + 1}h</span><span class="k">The only hours you exist</span></div>
-            <div class="tile"><span class="v num">${esc(ratio)}<span style="font-size:0.6em">:1</span></span><span class="k">Lines written per 1 kept</span></div>
-            <div class="tile"><span class="v v-alert num">${pct(r.ledger.permissiveShare)}</span><span class="k">Ran with permissions off</span></div>
-          </div>
+        <div class="figures">
+          <div class="fig"><b class="v v-machine num">$${Math.round(r.money.billed)}</b><span class="k">Burned in ${num(r.rhythm.activeDays)} days</span></div>
+          <div class="fig"><b class="v v-machine num">${esc(compact(r.volume.total))}</b><span class="k">Tokens moved</span></div>
+          <div class="fig"><b class="v v-paper num">${r.rhythm.firstHour ?? 0}–${(r.rhythm.lastHour ?? 0) + 1}h</b><span class="k">Only hours you exist</span></div>
+          <div class="fig"><b class="v v-paper num">${pct(r.ledger.permissiveShare)}</b><span class="k">With permissions off</span></div>
         </div>
       </div>
 
       <div class="card-foot">
         <div class="foot-rhythm">
-          <div class="label" style="margin-bottom:6px">Every hour of your week · ${num(r.scale.sessions)} sessions in ${num(r.rhythm.activeDays)} days</div>
+          <span class="lbl">Every hour of your week · ${num(r.scale.sessions)} sessions in ${num(r.rhythm.activeDays)} days</span>
           <div class="card-spark" id="cardSpark"></div>
+          <div class="spark-axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
         </div>
-        <div class="foot-archetype">
-          <div class="word-strip"><span>Its favourite words:</span>${r.vocabulary.agentWords.slice(0, 5).map((w) => `<b>${esc(w)}</b>`).join("")}</div>
-          <div class="word-strip" style="margin-top:4px"><span>Yours:</span>${r.vocabulary.userWords.slice(0, 3).map((w) => `<b style="color:var(--card-signal)">${esc(w)}</b>`).join("")}</div>
+        <div class="foot-install">
+          <span class="lbl">Run yours</span>
+          <b>npx cc-recap</b>
         </div>
       </div>
     </div>
 
     <div class="card-note">
-      <span>Every figure below is computed from your own transcripts on this machine.</span>
+      <span id="actNote">Every figure below is computed from your own transcripts on this machine.</span>
       <span>${pct(r.volume.cacheShare, 1)} of all token traffic was re-reading cached context.</span>
     </div>
   </div>
 
   <!-- ====================== MONEY ====================== -->
-  <section>
-    <div class="sec-head">
+  <section class="inst" data-signal="burn">
+    <div class="rail"><span class="unit">USD</span><span class="tick"></span></div>
+    <div class="inst-head">
       <h2>Money</h2>
-      <span class="hint">List prices · cache read 0.1× · cache write 2× at 1h TTL</span>
+      <p class="hint">List prices · cache read 0.1× · cache write 2× at 1h TTL</p>
     </div>
 
-    <div class="grid-3" style="margin-bottom:22px">
-      ${stat("Actually spent", money(r.money.billed), `across ${num(r.scale.sessions)} sessions`)}
-      ${stat("Without caching", money(r.money.uncached), "same tokens, no cache", "cool")}
-      ${stat("Cost per instruction", money(r.money.perInstruction), `${num(r.scale.instructions)} instructions given`)}
+    <p class="finding">Caching absorbed <strong class="num">${money(r.money.saved)}</strong> — ${pct(r.money.savedShare, 1)} of what this week would otherwise have cost.</p>
+
+    <div class="readouts">
+      ${stat("Actually spent", money(r.money.billed), `across ${num(r.scale.sessions)} sessions`, "burn")}
+      ${stat("Without caching", money(r.money.uncached), "same tokens, no cache", "ghost")}
+      ${stat("Cost per instruction", money(r.money.perInstruction), `${num(r.scale.instructions)} instructions given`, "burn")}
       ${stat("Cost per surviving line", r.money.perSurvivingLine === null ? "—" : money(r.money.perSurvivingLine), `${num(r.work.net)} net lines of code`)}
     </div>
 
@@ -186,32 +241,32 @@ export function render(r, { title = "AI Wrapped" } = {}) {
       <div class="bars">
         <div class="bar-row" data-tip="Billed at cache-read and cache-write rates">
           <span class="bar-key">Billed</span>
-          <span class="bar-track"><span class="bar-fill" style="width:${r.money.billedShare}%"></span></span>
+          <span class="bar-track"><span class="bar-fill burn" style="--fill:${r.money.billedShare}%"></span></span>
           <span class="bar-val num">${money(r.money.billed)}</span>
         </div>
         <div class="bar-row" data-tip="Every cached token billed as fresh input">
           <span class="bar-key">If uncached</span>
-          <span class="bar-track"><span class="bar-fill cool" style="width:100%"></span></span>
+          <span class="bar-track"><span class="bar-fill ghost" style="--fill:100%;--delay:0.05s"></span></span>
           <span class="bar-val num">${money(r.money.uncached)}</span>
         </div>
       </div>
-      <p class="prose" style="margin-top:14px;font-size:var(--step-1)">
-        Caching absorbed <strong>${money(r.money.saved)}</strong> — ${pct(r.money.savedShare, 1)} of what this work would otherwise have cost.
-      </p>
     </div>
   </section>
 
   <!-- ====================== MODELS ====================== -->
-  <section>
-    <div class="sec-head">
+  <section class="inst" data-signal="churn">
+    <div class="rail"><span class="unit">Share</span><span class="tick"></span></div>
+    <div class="inst-head">
       <h2>Models</h2>
-      <span class="hint">Two shares of the same 100% scale</span>
+      <p class="hint">Two shares of the same 100% scale</p>
     </div>
+
+    <p class="finding">${esc(modelLine(r))}</p>
     <div class="panel">
-      <h3>${esc(modelLine(r))}</h3>
+      <h3>Share of turns and spend</h3>
       <p class="sub">Turns and spend rarely line up — the expensive model is not the busy one.</p>
       <div class="legend">
-        ${r.models.slice(0, 2).map((m, i) => `<span><i class="swatch" style="background:var(--${i ? "cool" : "signal"})"></i> ${esc(m.label)}</span>`).join("")}
+        ${r.models.slice(0, 2).map((m, i) => `<span><i class="swatch" style="background:var(--${i ? "churn" : "burn"})"></i> ${esc(m.label)}</span>`).join("")}
       </div>
       <div class="pair">
         ${pairRow(
@@ -235,23 +290,26 @@ export function render(r, { title = "AI Wrapped" } = {}) {
   </section>
 
   <!-- ====================== VOLUME ====================== -->
-  <section>
-    <div class="sec-head">
+  <section class="inst" data-signal="ghost">
+    <div class="rail"><span class="unit">Tokens</span><span class="tick"></span></div>
+    <div class="inst-head">
       <h2>Volume</h2>
-      <span class="hint">${compact(r.volume.total)} tokens moved in total</span>
+      <p class="hint">${compact(r.volume.total)} tokens moved in total</p>
     </div>
-    <div class="grid-2">
+
+    <p class="finding">${pct(r.volume.cacheShare, 1)} of every token you moved was context being re-read, not new text. Another ${pct(r.volume.thinkingShare, 1)} of its output was thinking you never saw.</p>
+    <div class="split-2">
       <div class="panel">
         <h3>Where the tokens went</h3>
         <p class="sub">Almost everything was context being re-read, not new text being produced.</p>
         <div class="bars">
           ${bars(
             [
-              ["Cache read", r.volume.cacheRead, "Cached context replayed at 0.1× input price"],
-              ["Cache write", r.volume.cacheWrite, "Context written into the cache at 2× (1h TTL)"],
-              ["Output", r.volume.output, "Tokens the model generated"],
-              ["Fresh input", r.volume.input, "Text never seen before"],
-            ].map(([k, v, tip]) => [k, v, `${tip} — ${num(v)}`]),
+              ["Cache read", r.volume.cacheRead, "Cached context replayed at 0.1× input price", "ghost"],
+              ["Cache write", r.volume.cacheWrite, "Context written into the cache at 2× (1h TTL)", "ghost"],
+              ["Output", r.volume.output, "Tokens the model generated", "churn"],
+              ["Fresh input", r.volume.input, "Text never seen before", "burn"],
+            ].map(([k, v, tip, sig]) => [k, v, `${tip} — ${num(v)}`, sig]),
             "",
             compact,
           )}
@@ -268,6 +326,7 @@ export function render(r, { title = "AI Wrapped" } = {}) {
             Math.max(0, r.volume.output - r.volume.thinking),
             `${num(r.volume.thinking)} hidden reasoning tokens`,
             `${num(r.volume.output - r.volume.thinking)} tokens you could read`,
+            ["ghost", "churn"],
           )}
         </div>
         ${kv([
@@ -281,23 +340,26 @@ export function render(r, { title = "AI Wrapped" } = {}) {
   </section>
 
   <!-- ====================== RHYTHM ====================== -->
-  <section>
-    <div class="sec-head">
+  <section class="inst" data-signal="churn">
+    <div class="rail"><span class="unit">Hours</span><span class="tick"></span></div>
+    <div class="inst-head">
       <h2>Rhythm</h2>
-      <span class="hint">Local time · all activity</span>
+      <p class="hint">Local time · all activity</p>
     </div>
-    <div class="panel" style="margin-bottom:22px">
+
+    <p class="finding">${esc(rhythmLine(r))}</p>
+    <div class="panel">
       <h3>Hour of day</h3>
       <p class="sub">${esc(rhythmLine(r))}</p>
-      <div class="cols" id="hourChart"></div>
-      <div class="col-axis" id="hourAxis"></div>
+      <div class="trace" id="hourChart"></div>
+      <div class="ruler" id="hourAxis"></div>
     </div>
-    <div class="grid-2">
+    <div class="split-2">
       <div class="panel">
         <h3>Day of week</h3>
         <p class="sub">${num(r.rhythm.activeDays)} of ${num(r.rhythm.periodDays)} days carried everything; the longest streak reached ${num(r.rhythm.streak)}.</p>
-        <div class="cols" id="dayChart" style="height:96px"></div>
-        <div class="col-axis" id="dayAxis"></div>
+        <div class="trace short" id="dayChart"></div>
+        <div class="ruler" id="dayAxis"></div>
       </div>
       <div class="panel">
         <h3>Session shape</h3>
@@ -315,18 +377,21 @@ export function render(r, { title = "AI Wrapped" } = {}) {
   </section>
 
   <!-- ====================== WORK ====================== -->
-  <section>
-    <div class="sec-head">
+  <section class="inst" data-signal="churn">
+    <div class="rail"><span class="unit">Lines</span><span class="tick"></span></div>
+    <div class="inst-head">
       <h2>Work</h2>
-      <span class="hint">From real diffs, not tool-call counts</span>
+      <p class="hint">From real diffs, not tool-call counts</p>
     </div>
-    <div class="grid-3" style="margin-bottom:22px">
+
+    <p class="finding"><strong class="num">${num(r.work.added)}</strong> lines written, <strong class="num">${num(r.work.net)}</strong> survived — ${ratio} drafts for every line that stayed.</p>
+    <div class="readouts">
       ${stat("Lines added", num(r.work.added))}
-      ${stat("Lines removed", num(r.work.removed), "", "alert")}
-      ${stat("Net survivors", num(r.work.net), `${ratio} written per 1 kept`, "cool")}
-      ${stat("Tool errors", num(r.work.errors), `against ${num(r.work.victoryClaims)} victory claims`)}
+      ${stat("Lines removed", num(r.work.removed), "", "alarm")}
+      ${stat("Net survivors", num(r.work.net), `${ratio} written per 1 kept`, "churn")}
+      ${stat("Tool errors", num(r.work.errors), `against ${num(r.work.victoryClaims)} victory claims`, "alarm")}
     </div>
-    <div class="grid-2">
+    <div class="split-2">
       <div class="panel">
         <h3>Tools</h3>
         <p class="sub">${esc(toolLine(r))}</p>
@@ -335,22 +400,25 @@ export function render(r, { title = "AI Wrapped" } = {}) {
       <div class="panel">
         <h3>Shell commands</h3>
         <p class="sub">Top program per invocation, heredoc bodies excluded.</p>
-        <div class="bars">${bars(r.shell, "cool")}</div>
+        <div class="bars">${bars(r.shell, "churn")}</div>
       </div>
     </div>
   </section>
 
   <!-- ====================== BEHAVIOUR ====================== -->
-  <section>
-    <div class="sec-head">
+  <section class="inst" data-signal="ghost">
+    <div class="rail"><span class="unit">Phrases</span><span class="tick"></span></div>
+    <div class="inst-head">
       <h2>Behaviour</h2>
-      <span class="hint">Phrase mining across ${compact(r.volume.agentChars)} characters, EN + RU</span>
+      <p class="hint">Phrase mining across ${compact(r.volume.agentChars)} characters, EN + RU</p>
     </div>
-    <div class="grid-2">
+
+    <p class="finding">It announced the next move ${num(r.behaviour.stated)} times and a tool call followed in ${pct(r.behaviour.actedShare)} of them.</p>
+    <div class="split-2">
       <div class="panel">
         <h3>What it said</h3>
         <p class="sub">Each category counts the messages it appeared in, not every occurrence.</p>
-        <div class="bars">${bars(r.behaviour.phrases)}</div>
+        <div class="bars">${bars(r.behaviour.phrases, "ghost")}</div>
       </div>
       <div class="panel">
         <h3>Announcements vs actions</h3>
@@ -363,7 +431,7 @@ export function render(r, { title = "AI Wrapped" } = {}) {
             Math.max(0, r.behaviour.stated - r.behaviour.acted),
             `${num(r.behaviour.acted)} followed by a tool call`,
             `${num(r.behaviour.stated - r.behaviour.acted)} with no tool call before the turn ended`,
-            ["cool", "signal"],
+            ["churn", "ghost"],
           )}
         </div>
         ${kv([
@@ -376,38 +444,45 @@ export function render(r, { title = "AI Wrapped" } = {}) {
   </section>
 
   <!-- ====================== VOCABULARY ====================== -->
-  <section>
-    <div class="sec-head">
+  <section class="inst" data-signal="you">
+    <div class="rail"><span class="unit">Words</span><span class="tick"></span></div>
+    <div class="inst-head">
       <h2>Vocabulary</h2>
-      <span class="hint">Distinctive words, not frequent ones</span>
+      <p class="hint">Distinctive words, not frequent ones</p>
     </div>
-    <div class="grid-2">
+
+    <p class="finding">${num(r.vocabulary.userUnique)} words you reach for that it never does. ${num(r.vocabulary.agentUnique)} it reaches for that you never do.</p>
+    <div class="split-2">
       <div class="panel">
         <h3>Sounds like you</h3>
         <p class="sub">Words you reach for that it does not.</p>
-        <div class="chips">${r.vocabulary.userWords.map((w) => `<span class="chip sig">${esc(w)}</span>`).join("")}</div>
+        <div class="chips">${r.vocabulary.userWords.map((w) => `<span class="chip you">${esc(w)}</span>`).join("")}</div>
         ${kv([["Your unique words", num(r.vocabulary.userUnique)]])}
       </div>
       <div class="panel">
         <h3>Sounds like it</h3>
         <p class="sub">Its signature vocabulary.</p>
-        <div class="chips">${r.vocabulary.agentWords.map((w) => `<span class="chip cool">${esc(w)}</span>`).join("")}</div>
+        <div class="chips">${r.vocabulary.agentWords.map((w) => `<span class="chip it">${esc(w)}</span>`).join("")}</div>
         ${kv([["Its unique words", `${num(r.vocabulary.agentUnique)} — ${(r.vocabulary.agentUnique / (r.vocabulary.userUnique || 1)).toFixed(1)}× yours`]])}
       </div>
     </div>
   </section>
 
   <!-- ====================== RAGE ====================== -->
-  <section>
-    <div class="sec-head">
+  <section class="inst" data-signal="alarm">
+    <div class="rail"><span class="unit">Score</span><span class="tick"></span></div>
+    <div class="inst-head">
       <h2>Rage</h2>
-      <span class="hint">Obfuscation-tolerant · stays on this machine</span>
+      <p class="hint">Obfuscation-tolerant · stays on this machine</p>
     </div>
-    <div class="grid-2">
+
+    <p class="finding">${r.rage.meter === 0 ? "Nothing in this window tripped the detector." : `The meter reads ${r.rage.meter} out of 100 across ${num(r.scale.instructions)} instructions.`}</p>
+    <div class="split-2">
       <div class="panel">
         <h3>Rage meter</h3>
         <p class="sub">Weighted by severity: annoyance ×1, profanity ×3, insult ×6, and ×1.5 again when aimed at the agent rather than the code.</p>
         <div class="meter" id="rageMeter" data-tip="Score ${num(r.rage.total)} across ${num(r.scale.instructions)} instructions"></div>
+        <div class="meter-scale"><span>0</span><span>50</span><span>100</span></div>
         ${kv([
           ["Profanity", num(r.rage.profanity)],
           ["Direct insults", num(r.rage.insults)],
@@ -426,11 +501,14 @@ export function render(r, { title = "AI Wrapped" } = {}) {
   </section>
 
   <!-- ====================== LEDGER ====================== -->
-  <section>
-    <div class="sec-head">
+  <section class="inst" data-signal="burn">
+    <div class="rail"><span class="unit">USD</span><span class="tick"></span></div>
+    <div class="inst-head">
       <h2>Ledger</h2>
-      <span class="hint">Private — never leaves the machine</span>
+      <p class="hint">Private — never leaves the machine</p>
     </div>
+
+    <p class="finding">${pct(r.ledger.permissiveShare)} of the work went through with no confirmation step.</p>
     <div class="panel">
       <h3>Spend by project</h3>
       <p class="sub">Session count and cost rarely track each other.</p>
@@ -444,10 +522,9 @@ export function render(r, { title = "AI Wrapped" } = {}) {
           </tbody>
         </table>
       </div>
-      <p class="prose" style="margin-top:16px;font-size:var(--step-1)">
+      <p class="sub" style="margin:20px 0 0">
         File types touched: ${r.ledger.fileTypes.map(([ext, n]) => `${esc(ext)} ${num(n)}`).join(", ") || "none"}.
         Permission mode ran ${r.ledger.permissionModes.map(([mode, n]) => `<strong>${esc(mode)}</strong> ${num(n)}`).join(", ")} —
-        ${pct(r.ledger.permissiveShare)} of the work went through with no confirmation step.
       </p>
     </div>
   </section>
@@ -456,7 +533,21 @@ export function render(r, { title = "AI Wrapped" } = {}) {
 
 <div id="tip" role="status" aria-live="polite"></div>`;
 
+  const shareText = [
+    `My week with Claude Code — ${range}`,
+    ``,
+    `Archetype: ${r.archetype.name}`,
+    `${num(r.scale.instructions)} things I said → ${num(r.scale.actions)} things it did`,
+    `$${Math.round(r.money.billed)} of tokens · ${compact(r.volume.total)} moved`,
+    ``,
+    `Computed locally from my own transcripts, nothing uploaded:`,
+    `npx cc-recap`,
+  ].join("\n");
+
   const script = `
+  const QUOTE_RAW = ${JSON.stringify(quoteHtml)};
+  const QUOTE_SAFE = ${JSON.stringify(safeQuoteHtml)};
+  const SHARE_TEXT = ${JSON.stringify(shareText)};
   const HOURS = ${JSON.stringify(r.rhythm.hours)};
   const DAYS = ${JSON.stringify(r.rhythm.days)};
   const RAGE = ${JSON.stringify(r.rage.meter)};
@@ -468,19 +559,28 @@ export function render(r, { title = "AI Wrapped" } = {}) {
     return node;
   };
 
-  /** Vertical bars sharing one scale, with the peak emphasised. */
-  function columns(host, axis, values, labels, format) {
+  /**
+   * Vertical bars sharing one scale, with the peak emphasised and the hours you
+   * do not exist drawn as a stub on the baseline rather than left blank —
+   * absence is the finding, so it has to be visible.
+   *
+   * The axis is a ruler: every step gets a tick so the scale reads as
+   * continuous, and only every majorEvery-th one is numbered.
+   */
+  function columns(host, axis, values, labels, format, majorEvery) {
     const max = Math.max(...values, 1);
     const peak = values.indexOf(max);
     values.forEach((value, i) => {
       const col = el("div", "col" + (i === peak ? " peak" : value === 0 ? " empty" : ""));
       const bar = el("b");
-      bar.style.height = Math.max((value / max) * 100, value === 0 ? 1.5 : 3) + "%";
+      bar.style.setProperty("--h", Math.max((value / max) * 100, value === 0 ? 1.5 : 3) + "%");
+      bar.style.setProperty("--delay", (i * 0.016).toFixed(3) + "s");
       col.appendChild(bar);
       col.dataset.tip = format(labels[i], value);
       host.appendChild(col);
-      const tick = el("div");
-      tick.textContent = labels[i];
+      const major = i % majorEvery === 0;
+      const tick = el("div", major ? "major" : "");
+      if (major) tick.textContent = labels[i];
       axis.appendChild(tick);
     });
   }
@@ -491,11 +591,8 @@ export function render(r, { title = "AI Wrapped" } = {}) {
     HOURS,
     HOURS.map((_, i) => String(i).padStart(2, "0")),
     (label, value) => label + ":00 — " + value.toLocaleString("en-US") + " events",
+    window.matchMedia("(max-width: 560px)").matches ? 6 : 3,
   );
-  const tickStep = window.matchMedia("(max-width: 560px)").matches ? 6 : 3;
-  document.querySelectorAll("#hourAxis div").forEach((tick, i) => {
-    if (i % tickStep !== 0) tick.textContent = "";
-  });
 
   columns(
     document.getElementById("dayChart"),
@@ -503,6 +600,7 @@ export function render(r, { title = "AI Wrapped" } = {}) {
     DAYS,
     DAY_NAMES,
     (label, value) => label + " — " + value.toLocaleString("en-US") + " events",
+    1,
   );
 
   // Card sparkline: the same 24 hours, compressed to a footer strip.
@@ -517,6 +615,23 @@ export function render(r, { title = "AI Wrapped" } = {}) {
   // Rage meter: 20 segments.
   const meter = document.getElementById("rageMeter");
   for (let i = 0; i < 20; i += 1) meter.appendChild(el("i", i < Math.round(RAGE / 5) ? "on" : ""));
+
+  // ---- Powering up ---------------------------------------------------------
+  // Every plot is armed at zero and lit when its panel first comes into view,
+  // once. The class is added from here rather than written into the markup, so
+  // a page with JS switched off simply shows the finished reading.
+  const plots = document.querySelectorAll(".panel");
+  if (window.IntersectionObserver && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    plots.forEach((plot) => plot.classList.add("arm"));
+    const watcher = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("lit");
+        watcher.unobserve(entry.target);
+      });
+    }, { rootMargin: "0px 0px -12% 0px" });
+    plots.forEach((plot) => watcher.observe(plot));
+  }
 
   // Shared tooltip for every [data-tip] target.
   const tip = document.getElementById("tip");
@@ -542,7 +657,144 @@ export function render(r, { title = "AI Wrapped" } = {}) {
       tip.style.left = x + "px";
       tip.style.top = y + "px";
     });
-  });`;
+  });
+
+  // ---- The card as a file --------------------------------------------------
+  // Screenshotting a browser window gives you a card at whatever width the
+  // window happened to be, with a scrollbar down the side. This rasterises the
+  // live card at a fixed 1200 x 630 through an SVG foreignObject, so what
+  // lands in the timeline is the card and nothing else. No network, no library.
+
+  const card = document.getElementById("shareCard");
+  const note = document.getElementById("actNote");
+  const quoteSlot = document.getElementById("quoteSlot");
+  const NOTE_DEFAULT = note.textContent;
+  const TOKENS = [
+    "--card-ground", "--card-paper", "--card-graphite", "--card-rule",
+    "--card-machine", "--card-ember", "--mono", "--serif", "--sans",
+    "--t-micro", "--t-label", "--t-body", "--t-lead",
+  ];
+
+  let noteTimer = 0;
+  function say(text) {
+    note.textContent = text;
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(() => { note.textContent = NOTE_DEFAULT; }, 6000);
+  }
+
+  /** The card, frozen at export size, as an SVG data URL. */
+  function cardSvg() {
+    const clone = card.cloneNode(true);
+    clone.removeAttribute("id");
+    clone.style.width = "1200px";
+    clone.style.height = "630px";
+    clone.style.minHeight = "0";
+    clone.style.aspectRatio = "auto";
+
+    // The page's tokens are read off the live root so the file matches the card
+    // on screen, rather than whichever theme an SVG image decides it is in.
+    const root = getComputedStyle(document.documentElement);
+    const vars = TOKENS.map((t) => t + ":" + root.getPropertyValue(t).trim()).join(";");
+    const css = document.getElementById("ccss").textContent;
+    const markup = new XMLSerializer().serializeToString(clone);
+
+    // The tokens go in a rule rather than a style attribute: the font stacks
+    // carry double quotes of their own, which would end the attribute early.
+    const pin = "#ccx{width:1200px;height:630px;" + vars + "}";
+
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">' +
+      '<foreignObject x="0" y="0" width="1200" height="630">' +
+      '<div xmlns="http://www.w3.org/1999/xhtml" id="ccx">' +
+      "<style><![CDATA[" + css + "\\n" + pin + "]]></style>" + markup +
+      "</div></foreignObject></svg>";
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  }
+
+  /** 2400 x 1260 so it survives the timeline's re-encode. */
+  function cardPng() {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 2400;
+        canvas.height = 1260;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, 2400, 1260);
+        try {
+          canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("no blob"))), "image/png");
+        } catch (err) {
+          reject(err);
+        }
+      };
+      img.onerror = () => reject(new Error("the card would not rasterise"));
+      img.src = cardSvg();
+    });
+  }
+
+  function saveBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
+  // A browser that will not rasterise the card still opens it, and the card is
+  // the only thing on that page — so the fallback screenshot is still clean.
+  function fallback(err) {
+    say("Could not build the PNG here (" + err.message + ") — opened the card on its own page instead.");
+    window.open(cardSvg(), "_blank", "noopener");
+  }
+
+  document.getElementById("dlPng").addEventListener("click", () => {
+    say("Rendering…");
+    cardPng().then((blob) => {
+      saveBlob(blob, "cc-recap.png");
+      say("Saved cc-recap.png — 1200 × 630, ready to drop into a post.");
+    }, fallback);
+  });
+
+  document.getElementById("copyPng").addEventListener("click", () => {
+    if (!navigator.clipboard || !window.ClipboardItem) {
+      say("This browser has no image clipboard — use Download PNG.");
+      return;
+    }
+    say("Rendering…");
+    // Safari resolves the clipboard write against a promise handed over
+    // synchronously, so the blob is passed as one rather than awaited first.
+    const item = new ClipboardItem({ "image/png": cardPng() });
+    navigator.clipboard.write([item]).then(
+      () => say("Card copied — paste it straight into the post."),
+      () => cardPng().then((blob) => { saveBlob(blob, "cc-recap.png"); say("Clipboard refused; saved cc-recap.png instead."); }, fallback),
+    );
+  });
+
+  document.getElementById("shareX").addEventListener("click", () => {
+    const intent = "https://x.com/intent/post?text=" + encodeURIComponent(SHARE_TEXT);
+    window.open(intent, "_blank", "noopener");
+    cardPng().then((blob) => {
+      saveBlob(blob, "cc-recap.png");
+      say("Post opened and cc-recap.png saved — drag the file into the post.");
+    }, () => say("Post opened. Use Download PNG for the image."));
+  });
+
+  const safeToggle = document.getElementById("safeToggle");
+  if (!QUOTE_RAW) {
+    safeToggle.disabled = true;
+    safeToggle.textContent = "No quote to hide";
+  } else {
+    safeToggle.addEventListener("click", () => {
+      const on = safeToggle.getAttribute("aria-pressed") !== "true";
+      safeToggle.setAttribute("aria-pressed", String(on));
+      safeToggle.textContent = "Safe mode: " + (on ? "on" : "off");
+      quoteSlot.innerHTML = on ? QUOTE_SAFE : QUOTE_RAW;
+      say(on ? "Your angriest message is blocked out on the card. It is still in Rage, below." : "The quote is back on the card, verbatim.");
+    });
+  }`;
 
   return { body, script, css: CSS, title };
 }
@@ -556,7 +808,7 @@ export function renderPage(report, options) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title>
-<style>${css}</style>
+<style id="ccss">${css}</style>
 </head>
 <body>
 ${body}
@@ -571,7 +823,7 @@ ${body}
 export function renderArtifact(report, options) {
   const { body, script, css, title } = render(report, options);
   return `<title>${esc(title)}</title>
-<style>${css}</style>
+<style id="ccss">${css}</style>
 ${body}
 <script>${script}
 </script>

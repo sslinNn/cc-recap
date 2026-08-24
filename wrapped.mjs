@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// cc-wrapped — Spotify-Wrapped for Claude Code.
+// cc-recap — Spotify-Wrapped for Claude Code.
 // Reads ~/.claude/projects/**/*.jsonl, computes everything locally, writes one HTML file.
 
 import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
@@ -146,7 +146,9 @@ function main() {
   if (!args.quiet) {
     console.log(summary(report));
     console.log(`  Written to ${out}`);
-    console.log(`  Read ${corpus.lines.toLocaleString("en-US")} records from ${corpus.files} transcripts\n`);
+    console.log(`  Read ${corpus.lines.toLocaleString("en-US")} records from ${corpus.files} transcripts`);
+    console.log(`  Open it and hit Download PNG — the card comes out 1200 x 630, and`);
+    console.log(`  Safe mode masks the swearing in your angriest message before it does.\n`);
   }
 }
 

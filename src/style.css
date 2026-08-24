@@ -1,546 +1,1006 @@
+  /* ========================================================================
+     cc-recap — a shift readout.
+
+     The report is the machine's own log, read off an instrument panel. Every
+     section is a different gauge, and the left rail names the unit it measures
+     rather than numbering it: these are nine instruments, not nine steps.
+
+     Colour is coded by meaning and never by rank:
+       burn   money leaving you
+       churn  volume and actions the machine produced
+       ghost  what you never saw — cached re-reads, hidden thinking, work that
+              went through with no confirmation
+       alarm  reserved status: errors, deleted lines, rage
+       you    the human's share, which is the ink of the page
+
+     The three categorical hues were validated on all pairs in both modes
+     (worst CVD ΔE 14.6 light / 9.7 dark against a target of 8; worst
+     normal-vision ΔE 19.7 / 16.8 against a floor of 15; every mark clears 3:1
+     on its own surface). Alarm is a status colour and always ships with a word
+     beside it, never on its own.
+     ==================================================================== */
 
   /* ---- Tokens: complete light palette on bare :root ---------------------- */
   :root {
-    --ground: #E9EAEC;
-    --panel: #F7F8F9;
-    --panel-2: #FDFDFD;
-    --rule: #C9CDD3;
-    --rule-soft: #DDE0E4;
-    --ink: #13161B;
-    --ink-2: #444C57;
-    --ink-3: #6E7885;
-    --signal: #B2670F;
-    --cool: #0B7E9E;
-    --alert: #B03A32;
-    --signal-wash: rgba(178, 103, 15, 0.10);
-    --cool-wash: rgba(11, 126, 158, 0.10);
-    --alert-wash: rgba(176, 58, 50, 0.10);
-    --card-ground: #14171C;
-    --card-ink: #F2F3F4;
-    --card-ink-2: #98A2AE;
-    --card-rule: #2A303A;
-    --card-signal: #E0A050;
-    --card-cool: #46A9C2;
+    color-scheme: light;
 
-    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", Menlo,
-      Consolas, "Liberation Mono", monospace;
+    /* Surfaces. A panel enclosure is lit, not black: the ground carries a
+       cool slate cast so the instrument faces can sit above it. */
+    --enclosure: #E3E8EB;
+    --face: #F5F7F8;
+    --raised: #FFFFFF;
+    --etch: #BFC8CD;
+    --etch-soft: #D8DEE2;
+
+    --ink: #0F1518;
+    --ink-2: #414D54;
+    --ink-3: #68757D;
+
+    --burn: #C6521B;
+    --churn: #008DA6;
+    --ghost: #5D4BC8;
+    --alarm: #B3352C;
+    --you: #0F1518;
+
+    --burn-wash: rgba(198, 82, 27, 0.10);
+    --churn-wash: rgba(0, 141, 166, 0.10);
+    --ghost-wash: rgba(93, 75, 200, 0.10);
+    --alarm-wash: rgba(179, 53, 44, 0.09);
+
+    /* The card is a poster, not a chart surface: it keeps its own warm
+       press-black so the exported PNG reads as a separate object from the
+       cool page it was cut out of. */
+    --card-ground: #12181B;
+    --card-paper: #F3EADB;
+    --card-graphite: #93A2A9;
+    --card-rule: #2B383F;
+    --card-machine: #3FBBD4;
+    --card-ember: #F0743C;
+
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Mono", Menlo,
+      Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace;
     --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
-      Georgia, serif;
-    --step-0: 0.75rem;
-    --step-1: 0.875rem;
-    --step-2: 1rem;
-    --step-3: 1.375rem;
-    --step-4: 2rem;
-    --step-5: 3.25rem;
+      Charter, Georgia, "DejaVu Serif", serif;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, "DejaVu Sans", sans-serif;
+
+    --t-micro: 0.6875rem;
+    --t-label: 0.75rem;
+    --t-body: 0.9375rem;
+    --t-lead: 1.0625rem;
+    --t-sec: 1.0625rem;
+    --t-find: clamp(1.55rem, 3.1vw, 2.35rem);
+    --t-read: clamp(2.2rem, 4.6vw, 3.4rem);
+    --t-hero: clamp(2.1rem, 6.2vw, 4.6rem);
+
+    --rail: 104px;
+    --rail-gap: 34px;
   }
 
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --ground: #0C0F13;
-      --panel: #14181E;
-      --panel-2: #1A1F26;
-      --rule: #2B323B;
-      --rule-soft: #212730;
-      --ink: #EAECEF;
-      --ink-2: #A7B0BB;
-      --ink-3: #737D8A;
-      --signal: #C8842C;
-      --cool: #1D96B0;
-      --alert: #D25A50;
-      --signal-wash: rgba(200, 132, 44, 0.14);
-      --cool-wash: rgba(29, 150, 176, 0.14);
-      --alert-wash: rgba(210, 90, 80, 0.14);
-      --card-ground: #05070A;
-      --card-ink: #F2F3F4;
-      --card-ink-2: #8B95A1;
-      --card-rule: #1E242C;
-      --card-signal: #C8842C;
-      --card-cool: #1D96B0;
+      color-scheme: dark;
+      --enclosure: #0D161A;
+      --face: #141E23;
+      --raised: #1A272E;
+      --etch: #2C3A42;
+      --etch-soft: #202D34;
+      --ink: #E7EDEF;
+      --ink-2: #A2B0B7;
+      --ink-3: #7A8991;
+      --burn: #E0652F;
+      --churn: #1AA1BD;
+      --ghost: #8272E2;
+      --alarm: #E8635A;
+      --you: #F3EADB;
+      --burn-wash: rgba(224, 101, 47, 0.14);
+      --churn-wash: rgba(26, 161, 189, 0.14);
+      --ghost-wash: rgba(130, 114, 226, 0.16);
+      --alarm-wash: rgba(232, 99, 90, 0.13);
     }
   }
 
   :root[data-theme="dark"] {
-    --ground: #0C0F13;
-    --panel: #14181E;
-    --panel-2: #1A1F26;
-    --rule: #2B323B;
-    --rule-soft: #212730;
-    --ink: #EAECEF;
-    --ink-2: #A7B0BB;
-    --ink-3: #737D8A;
-    --signal: #C8842C;
-    --cool: #1D96B0;
-    --alert: #D25A50;
-    --signal-wash: rgba(200, 132, 44, 0.14);
-    --cool-wash: rgba(29, 150, 176, 0.14);
-    --alert-wash: rgba(210, 90, 80, 0.14);
-    --card-ground: #05070A;
-    --card-ink: #F2F3F4;
-    --card-ink-2: #8B95A1;
-    --card-rule: #1E242C;
-    --card-signal: #C8842C;
-    --card-cool: #1D96B0;
+    color-scheme: dark;
+    --enclosure: #0D161A;
+    --face: #141E23;
+    --raised: #1A272E;
+    --etch: #2C3A42;
+    --etch-soft: #202D34;
+    --ink: #E7EDEF;
+    --ink-2: #A2B0B7;
+    --ink-3: #7A8991;
+    --burn: #E0652F;
+    --churn: #1AA1BD;
+    --ghost: #8272E2;
+    --alarm: #E8635A;
+    --you: #F3EADB;
+    --burn-wash: rgba(224, 101, 47, 0.14);
+    --churn-wash: rgba(26, 161, 189, 0.14);
+    --ghost-wash: rgba(130, 114, 226, 0.16);
+    --alarm-wash: rgba(232, 99, 90, 0.13);
   }
 
   /* ---- Base -------------------------------------------------------------- */
   * { box-sizing: border-box; }
 
+  /* Three voices, each with one job. The mono is the panel: every figure,
+     every unit, every legend. The serif is the human and appears only where a
+     person is speaking — the deck, the findings, the quotes. The sans carries
+     supporting prose so the serif never has to do ordinary work. */
   body {
     margin: 0;
-    background: var(--ground);
+    background: var(--enclosure);
     color: var(--ink);
-    font-family: var(--mono);
-    font-size: var(--step-1);
+    font-family: var(--sans);
+    font-size: var(--t-body);
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
     font-variant-numeric: tabular-nums;
   }
 
-  .wrap {
-    max-width: 1000px;
-    margin: 0 auto;
-    padding: 40px 24px 96px;
+  .num {
+    font-family: var(--mono);
+    font-feature-settings: "tnum" 1;
+    letter-spacing: -0.02em;
   }
 
-  .prose {
-    font-family: var(--serif);
-    font-size: var(--step-2);
-    line-height: 1.6;
-    color: var(--ink-2);
-    max-width: 62ch;
+  .wrap {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 34px 26px 120px;
   }
 
   .label {
-    font-size: var(--step-0);
-    letter-spacing: 0.14em;
+    font-family: var(--mono);
+    font-size: var(--t-label);
+    letter-spacing: 0.13em;
     text-transform: uppercase;
     color: var(--ink-3);
   }
-
-  .num { font-feature-settings: "tnum" 1; letter-spacing: -0.02em; }
 
   /* ---- Masthead ---------------------------------------------------------- */
   .masthead {
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
-    gap: 24px;
+    align-items: baseline;
+    gap: 8px 24px;
     flex-wrap: wrap;
     border-bottom: 2px solid var(--ink);
-    padding-bottom: 12px;
-    margin-bottom: 8px;
+    padding-bottom: 10px;
   }
   .masthead h1 {
     margin: 0;
-    font-size: var(--step-4);
-    font-weight: 700;
-    letter-spacing: -0.03em;
+    font-family: var(--mono);
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
   }
-  .masthead .meta { text-align: right; }
+  .masthead .meta {
+    font-family: var(--mono);
+    font-size: var(--t-label);
+    letter-spacing: 0.1em;
+    color: var(--ink-3);
+  }
+
+  /* The one asymmetry the whole report is about, stated before anything is
+     measured. The person's count is set in the person's face; the machine's in
+     the machine's. */
+  .deck {
+    font-family: var(--serif);
+    font-size: var(--t-hero);
+    line-height: 1.06;
+    letter-spacing: -0.028em;
+    text-wrap: balance;
+    margin: 34px 0 0;
+    max-width: 22ch;
+  }
+  .deck .said { font-weight: 700; }
+  .deck .did {
+    font-family: var(--mono);
+    font-weight: 800;
+    font-size: 0.82em;
+    letter-spacing: -0.045em;
+    color: var(--churn);
+  }
 
   .strapline {
     display: flex;
     justify-content: space-between;
-    gap: 16px;
+    gap: 12px 24px;
     flex-wrap: wrap;
-    padding: 8px 0 40px;
-    border-bottom: 1px solid var(--rule-soft);
-    margin-bottom: 40px;
+    padding: 20px 0 26px;
+    border-bottom: 1px solid var(--etch);
+    margin-bottom: 30px;
   }
 
   /* ---- Share card -------------------------------------------------------- */
-  .card-frame { margin-bottom: 20px; }
+  /* Two voices. Everything the person is gets the serif and paper-white;
+     everything the machine did gets the mono and phosphor. The typeface is the
+     legend, so the card needs no key.
+
+     Sizes are set in cqi against a card that is ~950px on screen and 1200px in
+     the export, and every clamp floor is a size you can actually read at the
+     smaller of the two. */
+  .card-frame { margin-bottom: 8px; }
+
+  .card-frame .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px 16px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--etch);
+    padding-bottom: 10px;
+    margin-bottom: 18px;
+  }
+  .card-frame .sec-head h2 {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: var(--t-sec);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
 
   .card {
     background: var(--card-ground);
-    color: var(--card-ink);
+    color: var(--card-paper);
     aspect-ratio: 1200 / 630;
-    min-height: 420px;
-    padding: 34px 38px;
+    min-height: 500px;
+    padding: 26px 34px 24px;
     display: grid;
-    grid-template-rows: auto 1fr auto;
-    gap: 18px;
+    grid-template-rows: auto auto 1fr auto;
+    gap: 16px;
     border: 1px solid var(--card-rule);
     container-type: inline-size;
+    overflow: hidden;
   }
 
-  .card-top {
+  /* One label style, sized to be read rather than to look technical: the
+     tracking is halved from the usual all-caps setting because the type is
+     small enough that wide tracking costs more than it buys. */
+  .card .lbl {
+    display: block;
+    font-family: var(--mono);
+    font-size: clamp(0.75rem, 1.3cqi, 0.95rem);
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--card-graphite);
+    line-height: 1.2;
+  }
+
+  .card-id {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
     gap: 8px 16px;
     flex-wrap: wrap;
-    border-bottom: 1px solid var(--card-rule);
-    padding-bottom: 12px;
   }
-  .card-top .name {
-    font-size: var(--step-1);
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--card-ink);
+  .card-id .name {
+    font-family: var(--mono);
+    font-size: clamp(1rem, 1.85cqi, 1.35rem);
+    font-weight: 800;
+    letter-spacing: 0.01em;
   }
-  .card-top .range { font-size: var(--step-0); color: var(--card-ink-2); }
+  .card-id .when {
+    font-family: var(--mono);
+    font-size: clamp(0.75rem, 1.3cqi, 0.95rem);
+    letter-spacing: 0.06em;
+    color: var(--card-graphite);
+  }
 
+  /* ---- The thesis: one lopsided conversation, drawn --------------------- */
+  .thesis { display: grid; gap: 10px; }
+  .thesis .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+  }
+  .side { min-width: 0; }
+  .side-it { text-align: right; }
+  .qty {
+    display: block;
+    margin-top: 4px;
+    line-height: 0.85;
+    font-weight: 800;
+    letter-spacing: -0.045em;
+    font-size: clamp(2.6rem, 6.4cqi, 4.6rem);
+  }
+  .side-you .qty { font-family: var(--serif); color: var(--card-paper); }
+  .side-it .qty { font-family: var(--mono); color: var(--card-machine); }
+
+  /* Solid against granular: one voice speaks in sentences, the other in
+     thousands of small acts. The widths are the real proportion, and the two
+     shares are printed under the ends so the bar explains itself. */
+  .split { display: flex; height: 30px; gap: 5px; }
+  .split .you {
+    flex: 0 0 var(--you-share, 6%);
+    min-width: 9px;
+    background: var(--card-paper);
+  }
+  .split .it {
+    flex: 1 1 auto;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--card-machine) 0 3px,
+      transparent 3px 8px
+    );
+  }
+  .shares {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: clamp(0.75rem, 1.3cqi, 0.95rem);
+    letter-spacing: 0.06em;
+    color: var(--card-graphite);
+  }
+
+  /* ---- Body: who you are, next to what it cost ------------------------- */
   .card-body {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-    gap: 26px 30px;
-    align-items: center;
+    grid-template-columns: minmax(0, 1.28fr) minmax(0, 0.86fr);
+    gap: 22px 38px;
+    align-items: stretch;
   }
 
-  /* The archetype is the thesis, so it gets display treatment — the earlier
-     card led with throughput, which described the tool rather than the person. */
+  /* Both columns spread to the full height of the row, which is what stops
+     the card emptying out into a gap above the foot. */
+  .portrait {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
   .arch {
-    font-size: clamp(1.55rem, 5.1cqi, 2.9rem);
+    font-family: var(--serif);
+    font-size: clamp(2.1rem, 5.8cqi, 3.8rem);
     line-height: 0.95;
     font-weight: 700;
     letter-spacing: -0.035em;
-    color: var(--card-signal);
+    color: var(--card-paper);
     text-wrap: balance;
+    margin-top: 6px;
   }
-  .arch-tag {
-    font-size: clamp(0.55rem, 1.1cqi, 0.7rem);
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--card-ink-2);
-    margin-bottom: 8px;
-  }
-  /* Serif against the mono — the all-mono card read flat. */
   .verdict {
     font-family: var(--serif);
-    font-size: clamp(0.8rem, 1.75cqi, 1.02rem);
+    font-size: clamp(0.95rem, 1.8cqi, 1.2rem);
     line-height: 1.4;
-    color: var(--card-ink);
-    margin-top: 12px;
-    text-wrap: pretty;
+    color: var(--card-paper);
+    opacity: 0.82;
+    margin: 12px 0 0;
+    max-width: 46ch;
   }
 
-  .flow {
-    display: flex;
-    align-items: baseline;
-    gap: clamp(8px, 1.8cqi, 16px);
-    margin-top: 16px;
-    padding-top: 14px;
-    border-top: 1px solid var(--card-rule);
-  }
-  .flow b {
-    font-size: clamp(1.4rem, 4.2cqi, 2.4rem);
-    font-weight: 700;
-    letter-spacing: -0.04em;
-    line-height: 1;
-  }
-  .flow .to { color: var(--card-ink-2); font-size: clamp(0.9rem, 2cqi, 1.2rem); }
-  .flow .lbl {
-    font-size: clamp(0.5rem, 1cqi, 0.66rem);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--card-ink-2);
-    display: block;
-    margin-top: 3px;
-  }
-
+  /* Your one surviving sentence, pinned to the foot of the column. */
   .quote-strip {
-    border-left: 3px solid var(--alert);
-    background: rgba(210, 90, 80, 0.12);
-    padding: 10px 12px;
     font-family: var(--serif);
-    font-size: clamp(0.74rem, 1.55cqi, 0.94rem);
-    line-height: 1.4;
-    color: var(--card-ink);
+    font-style: italic;
+    font-size: clamp(0.9rem, 1.65cqi, 1.12rem);
+    line-height: 1.42;
+    color: var(--card-paper);
+    border-left: 2px solid var(--card-ember);
+    padding-left: 13px;
   }
+  #quoteSlot { margin-top: auto; padding-top: 16px; }
   .quote-strip .who {
     display: block;
     margin-top: 6px;
     font-family: var(--mono);
-    font-size: clamp(0.5rem, 1cqi, 0.64rem);
-    letter-spacing: 0.08em;
+    font-style: normal;
+    font-size: clamp(0.72rem, 1.2cqi, 0.88rem);
+    letter-spacing: 0.07em;
     text-transform: uppercase;
-    color: var(--card-ink-2);
+    color: var(--card-graphite);
+  }
+  /* Safe mode changes the words, not the voice: same italic, same paper, only
+     the masked letters differ. The serif sets its asterisk near cap height, so
+     the run is nudged down and opened up to read as a censored word rather
+     than a cluster of footnote markers. */
+  .quote-strip.is-safe { letter-spacing: 0.01em; }
+  .quote-strip .masked {
+    letter-spacing: 0.08em;
+    vertical-align: -0.12em;
+    color: var(--card-graphite);
   }
 
-  .mini-tiles {
+  .figures {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1px;
-    background: var(--card-rule);
-    border: 1px solid var(--card-rule);
-    margin-top: 14px;
+    align-content: space-between;
+    gap: 18px;
   }
-  .tile {
-    background: var(--card-ground);
-    padding: 10px 11px 11px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+  .fig {
+    border-top: 1px solid var(--card-rule);
+    padding-top: 10px;
     min-width: 0;
   }
-  .tile .v {
-    font-size: clamp(0.95rem, 2.6cqi, 1.35rem);
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    line-height: 1.05;
+  .fig .v {
+    display: block;
+    font-family: var(--mono);
+    font-size: clamp(1.5rem, 3.2cqi, 2.3rem);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1;
   }
-  .tile .k {
-    font-size: clamp(0.5rem, 1cqi, 0.64rem);
-    color: var(--card-ink-2);
-    letter-spacing: 0.06em;
+  .fig .k {
+    display: block;
+    margin-top: 6px;
+    font-family: var(--mono);
+    font-size: clamp(0.75rem, 1.25cqi, 0.9rem);
+    letter-spacing: 0.08em;
     text-transform: uppercase;
+    color: var(--card-graphite);
     line-height: 1.3;
   }
-  .v-signal { color: var(--card-signal); }
-  .v-cool { color: var(--card-cool); }
-  .v-alert { color: var(--alert); }
+  .v-machine { color: var(--card-machine); }
+  .v-paper { color: var(--card-paper); }
 
-  .word-strip {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    flex-wrap: wrap;
-    font-size: clamp(0.58rem, 1.15cqi, 0.75rem);
-    color: var(--card-ink-2);
-  }
-  .word-strip b { color: var(--card-cool); font-weight: 400; }
-
+  /* ---- Foot: the card stands on your week ------------------------------- */
   .card-foot {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    gap: 14px 20px;
-    flex-wrap: wrap;
+    gap: 14px 28px;
     border-top: 1px solid var(--card-rule);
     padding-top: 12px;
   }
-  .card-foot .label { color: var(--card-ink-2); }
-  .card-foot > * { min-width: 0; }
-  .foot-rhythm { flex: 1 1 200px; }
-  .foot-archetype { flex: 0 1 auto; text-align: right; }
+  .foot-rhythm { flex: 1 1 auto; min-width: 0; }
 
   .card-spark {
     display: flex;
     align-items: flex-end;
-    gap: 2px;
-    height: 34px;
+    gap: 3px;
+    height: 44px;
     width: 100%;
-    max-width: 260px;
+    margin-top: 8px;
   }
-  /* Flexible bars: a fixed 7px × 24 strip overflows the card on a phone. */
   .card-spark i {
     display: block;
     flex: 1 1 0;
     min-width: 0;
-    background: var(--card-cool);
+    min-height: 3px;
     border-radius: 2px 2px 0 0;
-    min-height: 2px;
+    background: var(--card-machine);
+    opacity: 0.62;
   }
-  .card-spark i.peak { background: var(--card-signal); }
-  .card-spark i.zero { background: var(--card-rule); }
+  .card-spark i.peak { opacity: 1; background: var(--card-ember); }
+  .card-spark i.zero { background: var(--card-rule); opacity: 1; border-radius: 0; }
+
+  .spark-axis {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    font-family: var(--mono);
+    font-size: clamp(0.7rem, 1.15cqi, 0.85rem);
+    letter-spacing: 0.06em;
+    color: var(--card-graphite);
+  }
+
+  /* Whoever sees the screenshot has to be able to run it. This is the only
+     line on the card whose job is that, and the only warm mark beside it. */
+  .foot-install {
+    flex: 0 0 auto;
+    text-align: right;
+    border: 1px solid var(--card-ember);
+    padding: 9px 14px 10px;
+  }
+  .foot-install b {
+    display: block;
+    margin-top: 3px;
+    font-family: var(--mono);
+    font-size: clamp(1.05rem, 2.3cqi, 1.5rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--card-ember);
+  }
 
   .card-note {
     display: flex;
     justify-content: space-between;
-    gap: 12px;
+    gap: 12px 24px;
     flex-wrap: wrap;
-    font-size: var(--step-0);
+    font-size: var(--t-label);
+    font-family: var(--mono);
     color: var(--ink-3);
-    padding: 10px 2px 0;
+    padding: 12px 2px 0;
   }
 
-  /* ---- Sections ---------------------------------------------------------- */
-  section { margin-top: 64px; }
-
-  .sec-head {
+  /* ---- Card actions ------------------------------------------------------ */
+  /* The card is the thing that travels, so getting it out of the page is a
+     button rather than an instruction to crop a screenshot. */
+  .card-actions {
+    margin-left: auto;
     display: flex;
-    align-items: baseline;
-    gap: 4px 14px;
+    gap: 8px;
     flex-wrap: wrap;
-    border-bottom: 1px solid var(--rule);
-    padding-bottom: 8px;
-    margin-bottom: 22px;
   }
-  .sec-head h2 {
-    margin: 0;
-    font-size: var(--step-3);
-    font-weight: 700;
-    letter-spacing: -0.02em;
+  .act {
+    font: inherit;
+    font-size: var(--t-label);
+    font-family: var(--mono);
+    letter-spacing: 0.04em;
+    padding: 8px 13px;
+    color: var(--ink-2);
+    background: var(--raised);
+    border: 1px solid var(--etch);
+    border-radius: 2px;
+    cursor: pointer;
     white-space: nowrap;
   }
-  .sec-head .hint {
-    margin-left: auto;
-    font-size: var(--step-0);
+  .act:hover:not(:disabled) { color: var(--ink); border-color: var(--ink-3); }
+  .act:focus-visible { outline: 2px solid var(--churn); outline-offset: 2px; }
+  .act:disabled { opacity: 0.45; cursor: default; }
+  .act-primary {
+    color: var(--enclosure);
+    background: var(--burn);
+    border-color: var(--burn);
+    font-weight: 700;
+  }
+  .act-primary:hover:not(:disabled) { color: var(--enclosure); filter: brightness(1.1); }
+  .act-toggle[aria-pressed="true"] {
+    color: var(--ghost);
+    border-color: var(--ghost);
+    background: var(--ghost-wash);
+  }
+
+  /* ---- The instrument ---------------------------------------------------- */
+  /* Every section is a gauge. The rail names the unit that gauge reads in —
+     USD, TOKENS, HOURS, LINES — because that is what is printed on a real
+     instrument, and it tells you more than a serial number would. The coloured
+     tick under it is the signal this section is about, so the key for the whole
+     page runs down the left margin. */
+  .inst {
+    --sig: var(--churn);
+    --sig-wash: var(--churn-wash);
+    margin-top: 84px;
+    display: grid;
+    grid-template-columns: var(--rail) minmax(0, 1fr);
+    gap: 0 var(--rail-gap);
+    border-top: 1px solid var(--etch);
+    padding-top: 24px;
+  }
+  .inst[data-signal="burn"] { --sig: var(--burn); --sig-wash: var(--burn-wash); }
+  .inst[data-signal="ghost"] { --sig: var(--ghost); --sig-wash: var(--ghost-wash); }
+  .inst[data-signal="alarm"] { --sig: var(--alarm); --sig-wash: var(--alarm-wash); }
+  .inst[data-signal="you"] { --sig: var(--you); --sig-wash: var(--etch-soft); }
+
+  .rail {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    align-self: start;
+    position: sticky;
+    top: 24px;
+  }
+  .rail .unit {
+    display: block;
+    font-family: var(--mono);
+    font-size: var(--t-label);
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    line-height: 1.3;
+  }
+  .rail .tick {
+    display: block;
+    width: 30px;
+    height: 5px;
+    margin-top: 10px;
+    background: var(--sig);
+  }
+
+  .inst > :not(.rail) { grid-column: 2; }
+
+  .inst-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px 24px;
+    flex-wrap: wrap;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 9px;
+    margin-bottom: 26px;
+  }
+  .inst-head h2 {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: var(--t-sec);
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    line-height: 1.2;
+  }
+  .inst-head .hint {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: var(--t-micro);
+    letter-spacing: 0.06em;
     color: var(--ink-3);
     text-align: right;
   }
 
-  .grid-3 {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-    gap: 14px;
+  /* The report states its finding, then shows the evidence for it. The finding
+     is the only place on the page besides the card where a person is talking,
+     so it is the only place that gets the serif at size. */
+  .finding {
+    margin: 0 0 30px;
+    font-family: var(--serif);
+    font-size: var(--t-find);
+    line-height: 1.2;
+    letter-spacing: -0.022em;
+    color: var(--ink);
+    max-width: 32ch;
+    text-wrap: balance;
   }
-  .grid-2 {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 22px;
-  }
+  .finding strong { font-weight: 700; }
+  .finding .num { font-size: 0.88em; letter-spacing: -0.035em; }
 
+  /* ---- Readouts ---------------------------------------------------------- */
+  /* Four figures on one rule. The rule is the instrument's edge, so it runs the
+     full width of every cell with nothing padded off the end — the short
+     coloured segment is the only thing that breaks it, and it marks which
+     signal the figure belongs to. */
+  .readouts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(172px, 1fr));
+    gap: 26px 32px;
+    margin-bottom: 34px;
+  }
   .stat {
-    background: var(--panel);
-    border: 1px solid var(--rule-soft);
-    border-left: 3px solid var(--signal);
-    padding: 14px 16px;
+    position: relative;
+    border-top: 2px solid var(--etch);
+    padding-top: 13px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 7px;
+    min-width: 0;
   }
-  .stat.cool { border-left-color: var(--cool); }
-  .stat.alert { border-left-color: var(--alert); }
-  .stat .v { font-size: var(--step-4); font-weight: 700; letter-spacing: -0.035em; line-height: 1; }
-  .stat .k { font-size: var(--step-0); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); }
-  .stat .n { font-size: var(--step-0); color: var(--ink-3); line-height: 1.4; }
-
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--rule-soft);
-    padding: 18px 20px 20px;
+  .stat::before {
+    content: "";
+    position: absolute;
+    top: -2px;
+    left: 0;
+    width: 30px;
+    height: 2px;
+    background: var(--stat-sig, var(--ink-3));
   }
-  .panel h3 {
-    margin: 0 0 4px;
-    font-size: var(--step-1);
+  .stat.burn { --stat-sig: var(--burn); }
+  .stat.churn { --stat-sig: var(--churn); }
+  .stat.ghost { --stat-sig: var(--ghost); }
+  .stat.alarm { --stat-sig: var(--alarm); }
+  .stat .k {
+    order: -1;
+    font-family: var(--mono);
+    font-size: var(--t-label);
     letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    line-height: 1.3;
+  }
+  .stat .v {
+    font-family: var(--mono);
+    font-size: var(--t-read);
+    font-weight: 800;
+    letter-spacing: -0.045em;
+    line-height: 0.92;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+  .stat.burn .v { color: var(--burn); }
+  .stat.churn .v { color: var(--churn); }
+  .stat.ghost .v { color: var(--ghost); }
+  .stat.alarm .v { color: var(--alarm); }
+  .stat .n {
+    font-family: var(--sans);
+    font-size: var(--t-label);
+    color: var(--ink-3);
+    line-height: 1.4;
+  }
+
+  /* ---- Panels ------------------------------------------------------------ */
+  /* An instrument face: a bezel, a legend printed on it, and the plot inside.
+     The bezel is what stops fourteen charts running together down the page. */
+  .panel {
+    background: var(--face);
+    border: 1px solid var(--etch-soft);
+    border-radius: 3px;
+    padding: 20px 22px 22px;
+    min-width: 0;
+  }
+  .panel + .split-2, .split-2 + .panel { margin-top: 22px; }
+  .panel h3 {
+    margin: 0 0 6px;
+    font-family: var(--mono);
+    font-size: var(--t-label);
+    letter-spacing: 0.13em;
     text-transform: uppercase;
     font-weight: 700;
     color: var(--ink-2);
   }
-  .panel .sub { font-size: var(--step-0); color: var(--ink-3); margin-bottom: 14px; }
+  .panel .sub {
+    font-family: var(--sans);
+    font-size: var(--t-body);
+    line-height: 1.5;
+    color: var(--ink-3);
+    margin: 0 0 20px;
+    max-width: 62ch;
+  }
 
-  /* ---- Charts ------------------------------------------------------------ */
-  .bars { display: flex; flex-direction: column; gap: 7px; }
+  .split-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 22px;
+  }
+
+  /* ---- Horizontal bars --------------------------------------------------- */
+  /* One scale, thin marks, the data end rounded and the baseline end square so
+     the bar reads as growing from zero. The key wraps rather than being cut:
+     a tool called AskUserQuestion should say so. */
+  .bars { display: flex; flex-direction: column; gap: 8px; }
   .bar-row {
     display: grid;
-    grid-template-columns: 92px 1fr 62px;
+    grid-template-columns: minmax(0, 12ch) minmax(0, 1fr) max-content;
     align-items: center;
-    gap: 10px;
-    font-size: var(--step-0);
+    gap: 0 14px;
   }
-  .bar-track { display: block; background: var(--rule-soft); height: 12px; position: relative; }
+  .bar-key {
+    font-family: var(--mono);
+    font-size: var(--t-label);
+    line-height: 1.25;
+    color: var(--ink-2);
+    overflow-wrap: anywhere;
+  }
+  .bar-track {
+    display: block;
+    background: var(--etch-soft);
+    height: 22px;
+    position: relative;
+  }
   .bar-fill {
     /* An inline span ignores width and height — the fill has to be a block. */
     display: block;
     height: 100%;
-    background: var(--signal);
-    border-radius: 0 3px 3px 0;
-    min-width: 2px;
+    width: var(--fill, 0%);
+    background: var(--churn);
+    border-radius: 0 4px 4px 0;
+    min-width: 3px;
   }
-  .bar-fill.cool { background: var(--cool); }
-  .bar-fill.alert { background: var(--alert); }
-  .bar-val { text-align: right; color: var(--ink-2); }
-  .bar-key { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-fill.burn { background: var(--burn); }
+  .bar-fill.ghost { background: var(--ghost); }
+  .bar-fill.alarm { background: var(--alarm); }
+  .bar-val {
+    font-family: var(--mono);
+    font-size: var(--t-label);
+    text-align: right;
+    color: var(--ink);
+    white-space: nowrap;
+  }
 
-  .cols {
+  /* ---- The trace --------------------------------------------------------- */
+  /* Twenty-four hours across the full width of the instrument. The hours you do
+     not exist are drawn as a flat stub on the baseline rather than left blank,
+     because absence is the finding: this is the shape of a working day, and the
+     gaps are the part of it you get back. */
+  .trace {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
     gap: 2px;
     align-items: end;
-    height: 130px;
-    border-bottom: 1px solid var(--rule);
-    padding-bottom: 0;
+    height: clamp(150px, 20vw, 220px);
+    border-bottom: 1px solid var(--etch);
   }
-  .col { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+  .trace.short { height: clamp(110px, 13vw, 150px); }
+  .col {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    height: 100%;
+    min-width: 0;
+  }
   .col b {
     display: block;
-    background: var(--cool);
-    border-radius: 3px 3px 0 0;
+    height: var(--h, 0%);
+    background: var(--churn);
+    border-radius: 4px 4px 0 0;
     min-height: 2px;
   }
-  .col.peak b { background: var(--signal); }
-  .col.empty b { background: var(--rule-soft); }
-  .col-axis {
+  .col.peak b { background: var(--burn); }
+  .col.empty b { background: var(--etch); border-radius: 0; }
+
+  /* A ruler, not a rag: every hour gets a tick so the axis is continuous, and
+     only the quarter marks get a number. */
+  .ruler {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
     gap: 2px;
-    margin-top: 6px;
-    font-size: 0.62rem;
-    color: var(--ink-3);
+  }
+  .ruler > div {
+    position: relative;
+    padding-top: 12px;
     text-align: center;
-  }
-
-  /* Paired comparison: two shares of the same 100% scale, one axis. */
-  .pair { display: flex; flex-direction: column; gap: 14px; }
-  .pair-row { display: flex; flex-direction: column; gap: 5px; }
-  .pair-head { display: flex; justify-content: space-between; font-size: var(--step-0); color: var(--ink-2); }
-  .pair-track { display: flex; height: 26px; gap: 2px; background: var(--rule-soft); }
-  .pair-seg {
-    display: flex;
-    align-items: center;
-    padding: 0 8px;
-    font-size: var(--step-0);
-    color: #fff;
+    font-family: var(--mono);
+    font-size: var(--t-micro);
+    letter-spacing: 0.04em;
+    color: var(--ink-3);
     min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
   }
-  .seg-signal { background: var(--signal); }
-  .seg-cool { background: var(--cool); }
+  .ruler > div::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 1px;
+    height: 4px;
+    background: var(--etch-soft);
+  }
+  .ruler > div.major::before { height: 9px; background: var(--etch); }
+  .ruler > div.major { color: var(--ink-2); }
 
-  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: var(--step-0); color: var(--ink-2); margin-bottom: 12px; }
-  .legend span { display: inline-flex; align-items: center; gap: 6px; }
-  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  /* ---- Paired shares ----------------------------------------------------- */
+  /* Two shares of one 100% scale, on one axis. The 2px gap is the surface
+     showing through, which is what keeps two adjacent fills from reading as a
+     single mark. */
+  .pair { display: flex; flex-direction: column; gap: 18px; }
+  .pair-row { display: flex; flex-direction: column; gap: 7px; }
+  .pair-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: var(--t-label);
+    color: var(--ink-2);
+  }
+  .pair-head .num { color: var(--ink); }
+  .pair-track {
+    display: flex;
+    height: 30px;
+    gap: 2px;
+    background: var(--etch-soft);
+  }
+  .pair-seg {
+    display: block;
+    min-width: 0;
+    flex: 0 1 var(--seg, 50%);
+  }
+  .seg-burn { background: var(--burn); }
+  .seg-churn { background: var(--churn); }
+  .seg-ghost { background: var(--ghost); }
+  .seg-you { background: var(--you); }
+
+  .pair-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-family: var(--mono);
+    font-size: var(--t-label);
+    color: var(--ink);
+  }
+  .pair-foot span { display: inline-flex; align-items: center; gap: 7px; }
+
+  .legend {
+    display: flex;
+    gap: 8px 18px;
+    flex-wrap: wrap;
+    font-family: var(--mono);
+    font-size: var(--t-label);
+    color: var(--ink-2);
+    margin-bottom: 14px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .swatch { width: 11px; height: 11px; border-radius: 2px; display: inline-block; flex: none; }
 
   /* ---- Meter ------------------------------------------------------------- */
-  .meter {
-    display: flex;
-    gap: 3px;
-    margin: 10px 0 14px;
-  }
+  /* Twenty segments, one scale, and the scale printed under it — a gauge with
+     no numbers on it is decoration. */
+  .meter { display: flex; gap: 3px; margin: 4px 0 6px; }
   .meter i {
     flex: 1;
-    height: 22px;
-    background: var(--rule-soft);
+    height: 30px;
+    background: var(--etch-soft);
     border-radius: 1px;
   }
-  .meter i.on { background: var(--alert); }
+  .meter i.on { background: var(--alarm); }
+  .meter-scale {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: var(--t-micro);
+    color: var(--ink-3);
+    margin-bottom: 18px;
+  }
 
   blockquote {
     margin: 0;
-    padding: 14px 16px;
-    background: var(--alert-wash);
-    border-left: 3px solid var(--alert);
+    padding: 16px 18px;
+    background: var(--alarm-wash);
+    border-left: 3px solid var(--alarm);
     font-family: var(--serif);
-    font-size: var(--step-2);
+    font-size: var(--t-lead);
+    line-height: 1.45;
     color: var(--ink);
   }
   blockquote cite {
     display: block;
-    margin-top: 8px;
+    margin-top: 10px;
     font-family: var(--mono);
-    font-size: var(--step-0);
+    font-size: var(--t-label);
     font-style: normal;
     color: var(--ink-3);
   }
 
   /* ---- Table ------------------------------------------------------------- */
   .table-scroll { overflow-x: auto; }
-  table { border-collapse: collapse; width: 100%; font-size: var(--step-0); min-width: 420px; }
-  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--rule-soft); }
-  th { color: var(--ink-3); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 400; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-family: var(--mono);
+    font-size: var(--t-label);
+    min-width: 460px;
+  }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--etch-soft); }
+  th {
+    color: var(--ink-3);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 700;
+    font-size: var(--t-micro);
+  }
+  td { color: var(--ink-2); }
+  td:first-child { color: var(--ink); }
   td.n, th.n { text-align: right; }
-  tbody tr:hover { background: var(--signal-wash); }
+  tbody tr:hover { background: var(--sig-wash); }
 
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
   .chip {
-    border: 1px solid var(--rule);
-    padding: 3px 9px;
-    font-size: var(--step-0);
+    font-family: var(--mono);
+    border: 1px solid var(--etch);
+    border-radius: 2px;
+    padding: 4px 9px;
+    font-size: var(--t-label);
+    line-height: 1.3;
     color: var(--ink-2);
   }
-  .chip.sig { border-color: var(--signal); color: var(--signal); background: var(--signal-wash); }
-  .chip.cool { border-color: var(--cool); color: var(--cool); background: var(--cool-wash); }
+  .chip.you { border-color: var(--burn); color: var(--burn); background: var(--burn-wash); }
+  .chip.it { border-color: var(--churn); color: var(--churn); background: var(--churn-wash); }
 
-  .kv { display: flex; flex-direction: column; gap: 8px; }
-  .kv div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dotted var(--rule-soft); padding-bottom: 6px; }
+  /* ---- Key/value readouts ------------------------------------------------ */
+  .kv { display: flex; flex-direction: column; }
+  .kv div {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    border-bottom: 1px solid var(--etch-soft);
+    padding: 9px 0;
+    font-family: var(--mono);
+    font-size: var(--t-label);
+  }
+  .kv div:last-child { border-bottom: 0; }
   .kv span:first-child { color: var(--ink-3); }
-  .kv span:last-child { color: var(--ink); }
+  .kv span:last-child { color: var(--ink); text-align: right; }
+
+  /* ---- Powering up ------------------------------------------------------- */
+  /* The one piece of motion on the page: an instrument does not show its
+     reading before it is switched on. Marks grow from their baseline once,
+     when their section first comes into view, and never again. JS adds .arm,
+     so a page with no JS simply shows the finished reading. */
+  .arm .bar-fill, .arm .col b, .arm .pair-seg { transition: none; }
+  .arm .bar-fill { width: 0; }
+  .arm .col b { height: 0; }
+  .arm .pair-seg { flex-basis: 0; }
+  .arm.lit .bar-fill {
+    width: var(--fill, 0%);
+    transition: width 0.62s cubic-bezier(0.22, 1, 0.36, 1) var(--delay, 0s);
+  }
+  .arm.lit .col b {
+    height: var(--h, 0%);
+    transition: height 0.5s cubic-bezier(0.22, 1, 0.36, 1) var(--delay, 0s);
+  }
+  .arm.lit .pair-seg {
+    flex-basis: var(--seg, 50%);
+    transition: flex-basis 0.62s cubic-bezier(0.22, 1, 0.36, 1) var(--delay, 0s);
+  }
 
   /* ---- Tooltip ----------------------------------------------------------- */
   #tip {
@@ -548,10 +1008,11 @@
     z-index: 40;
     pointer-events: none;
     background: var(--ink);
-    color: var(--ground);
-    padding: 5px 9px;
-    font-size: var(--step-0);
+    color: var(--enclosure);
+    padding: 6px 10px;
+    font-size: var(--t-label);
     font-family: var(--mono);
+    border-radius: 2px;
     white-space: nowrap;
     opacity: 0;
     transition: opacity 0.1s;
@@ -559,54 +1020,90 @@
   #tip.on { opacity: 1; }
 
   [data-tip]:hover { cursor: help; }
-  :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--burn); outline-offset: 2px; }
 
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; animation: none !important; }
+    .arm .bar-fill { width: var(--fill, 0%); }
+    .arm .col b { height: var(--h, 0%); }
+    .arm .pair-seg { flex-basis: var(--seg, 50%); }
+  }
+
+  /* ---- Narrow ------------------------------------------------------------ */
+  @media (max-width: 860px) {
+    :root { --rail: 84px; --rail-gap: 22px; }
   }
 
   @media (max-width: 720px) {
-    :root { --step-4: 1.75rem; --step-3: 1.2rem; }
+    .wrap { padding: 22px 16px 72px; }
 
-    .wrap { padding: 24px 16px 64px; }
-    section { margin-top: 44px; }
+    /* The rail becomes a header strip: the unit and its signal still lead the
+       section, they just sit above it instead of beside it. */
+    .inst {
+      margin-top: 52px;
+      grid-template-columns: 1fr;
+      gap: 0;
+      padding-top: 18px;
+    }
+    .rail {
+      grid-column: 1;
+      grid-row: auto;
+      position: static;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .rail .tick { margin-top: 0; }
+    .inst > :not(.rail) { grid-column: 1; }
+    .inst-head { margin-bottom: 20px; }
+    .inst-head .hint { text-align: left; flex-basis: 100%; }
+    .finding { margin-bottom: 24px; }
+
+    .readouts { gap: 22px; margin-bottom: 28px; }
+    .panel { padding: 16px 15px 18px; }
+    .split-2 { grid-template-columns: 1fr; gap: 16px; }
 
     .masthead { align-items: flex-start; gap: 10px; }
-    .masthead .meta { text-align: left; }
+    .deck { margin-top: 26px; }
 
-    /* The 1200×630 frame is a desktop composition; on a phone the card
-       stacks so it stays readable rather than shrinking to illegibility. */
+    /* Long keys get their own line instead of being squeezed to four
+       characters. */
+    .bar-row {
+      grid-template-columns: minmax(0, 1fr) max-content;
+      grid-template-areas: "key val" "track track";
+      gap: 5px 12px;
+    }
+    .bar-key { grid-area: key; }
+    .bar-val { grid-area: val; }
+    .bar-track { grid-area: track; height: 18px; }
+    .bars { gap: 14px; }
+
+    /* The 1200×630 frame is a desktop composition; on a phone the card stacks
+       so it stays readable rather than shrinking to illegibility. */
     .card { aspect-ratio: auto; min-height: 0; padding: 20px 18px; gap: 16px; }
     .card-body { grid-template-columns: 1fr; gap: 20px; }
     .arch { font-size: 2.1rem; }
     .verdict { font-size: 0.95rem; }
-    .flow b { font-size: 1.9rem; }
-    .flow .lbl, .tile .k { font-size: 0.62rem; }
-    .tile .v { font-size: 1.2rem; }
-    .quote-strip { font-size: 0.88rem; }
-    .word-strip { font-size: 0.7rem; }
-    .card-spark { max-width: none; height: 28px; }
-    .foot-archetype { text-align: left; }
+    .qty { font-size: 2.4rem; }
+    .card .lbl, .fig .k { font-size: 0.75rem; }
+    .fig .v { font-size: 1.35rem; }
+    .quote-strip { font-size: 0.95rem; }
+    .card-spark { height: 40px; }
+    .card-foot { align-items: flex-start; flex-wrap: wrap; }
+    .foot-install { text-align: left; }
 
-    .sec-head .hint { margin-left: 0; text-align: left; flex-basis: 100%; }
+    .card-actions { margin-left: 0; flex-basis: 100%; }
+    .act { flex: 1 1 auto; text-align: center; }
 
-    /* Long keys get their own line instead of being clipped mid-word. */
-    .bar-row { grid-template-columns: 1fr auto; grid-template-areas: "key val" "track track"; gap: 4px 10px; }
-    .bar-key { grid-area: key; white-space: normal; }
-    .bar-val { grid-area: val; }
-    .bar-track { grid-area: track; height: 10px; }
-    .bars { gap: 12px; }
-
-    .panel { padding: 16px 14px 18px; }
-    .stat { padding: 12px 14px; }
-    .cols { height: 104px; }
-    .pair-seg { padding: 0 6px; }
-    blockquote { font-size: var(--step-1); padding: 12px 14px; }
+    .meter i { height: 24px; }
+    blockquote { font-size: var(--t-body); padding: 14px 15px; }
   }
 
   /* Two tiles still fit a 360px phone; one column makes the card needlessly
      tall. Only drop to a single column on genuinely narrow screens. */
   @media (max-width: 340px) {
-    .mini-tiles { grid-template-columns: 1fr; }
+    .figures { grid-template-columns: 1fr; }
     .arch { font-size: 1.8rem; }
+    .deck { font-size: 1.9rem; }
   }

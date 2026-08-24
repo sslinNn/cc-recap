@@ -95,7 +95,28 @@ assert.equal(report.shell[0][0], "cd");
 // The page renders and carries the figures.
 const html = renderPage(report);
 assert.ok(html.startsWith("<!doctype html>"));
-assert.ok(html.includes("AI WRAPPED"));
+assert.ok(html.includes("<h1>cc-recap</h1>"));
 assert.ok(!/undefined|NaN/.test(html), "rendered page has holes");
+
+// The card is the part that travels, so its exit routes are asserted: the
+// install line that closes the loop, the stylesheet the PNG exporter reads
+// back, and a safe-mode variant of the quote with no letters left in it.
+// The page script is assembled inside a template literal, so an escape that is
+// correct in the source can still emit a broken program. Parse what shipped.
+const emitted = html.match(/<script>([\s\S]*)<\/script>/);
+assert.ok(emitted, "page carries no script");
+assert.doesNotThrow(() => new Function(emitted[1]), "emitted page script does not parse");
+
+assert.ok(html.includes("npx cc-recap"), "card is missing the install line");
+assert.ok(html.includes('id="ccss"'), "exporter cannot find the stylesheet");
+assert.ok(html.includes('id="shareCard"'), "exporter cannot find the card");
+assert.ok(report.archetype.name && report.archetype.verdict, "archetype is empty");
+
+const safe = html.match(/const QUOTE_SAFE = (".*?[^\\]");/s);
+assert.ok(safe, "safe-mode quote was not emitted");
+const safeQuote = JSON.parse(safe[1]);
+assert.ok(/\*/.test(safeQuote), "safe mode masked nothing");
+assert.ok(!safeQuote.includes("б л я"), "safe mode left the swearing legible");
+assert.ok(safeQuote.includes("опять не работает"), "safe mode ate the readable sentence");
 
 console.log("smoke: ok —", report.scale.actions, "turns,", report.work.net, "net lines, rage", report.rage.meter);
